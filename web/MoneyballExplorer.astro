@@ -94,19 +94,26 @@ try {
       </details>
   <p class="mb-small mb-team" data-mb-team-summary hidden>Team totals count only matched salary and WAR that can be assigned to that team. A traded player's full record may appear among the dots while remaining excluded from the team total.</p>
   <details class="mb-extra" data-mb-extra>
-    <summary>Compare salaries $1 million apart</summary>
-    <p>Explore what the league line estimates at two salaries $1 million apart.</p>
-    <div class="mb-pay-comparison"><p data-mb-contrast-salaries></p><p data-mb-contrast-readout>No salary comparison is loaded.</p></div>
-    <p class="mb-small">This does not predict the effect of a raise.</p>
+    <summary>What does $1 million more in salary correspond to?</summary>
+    <p>Choose two salaries $1 million apart and compare the contribution estimated by the league line.</p>
     <p class="mb-small" data-mb-contrast-context></p>
-    <label class="mb-spending">Compare salaries starting at <span data-mb-contrast-start></span><input id="mb-spending" type="range" min="0" max="0" step="1" value="0" data-mb-spending disabled /></label>
-    <details class="mb-contrast-details"><summary>Range, support and full amounts</summary>
+    <label class="mb-spending">Choose the lower salary: <span data-mb-contrast-start></span><input id="mb-spending" type="range" min="0" max="0" step="1" value="0" data-mb-spending disabled /></label>
+    <div class="mb-scenarios" aria-label="Two salaries on the fitted league line">
+      <dl><dt>Lower salary</dt><dd data-mb-contrast-lower></dd><dt>Modeled contribution</dt><dd data-mb-contrast-lowerContribution></dd></dl>
+      <dl><dt>Higher salary · $1m more</dt><dd data-mb-contrast-higher></dd><dt>Modeled contribution</dt><dd data-mb-contrast-higherContribution></dd></dl>
+    </div>
+    <p class="mb-small"><DefinitionHelp id="mb-modeled-contribution" label="Modeled contribution"><span data-mb-contrast-unitNote></span> These are fitted league-line estimates, not observed players.</DefinitionHelp> estimates are rounded; the difference uses unrounded values.</p>
+    <div class="mb-pay-comparison"><p>Difference for the extra $1 million</p><p data-mb-contrast-readout>No salary comparison is loaded.</p></div>
+    <p class="mb-small"><DefinitionHelp id="mb-difference-range" label="Estimated range for this difference">The range uses both fitted points jointly and treats the supplied player scores as fixed. It does not include uncertainty in the provider’s player scores.</DefinitionHelp>: <strong data-mb-contrast-range></strong></p>
+    <p class="mb-small">This range concerns the league-line difference, not an individual player’s impact.</p>
+    <p class="mb-small" data-mb-contrast-shape></p>
+    <p class="mb-small">This comparison does not predict the effect of giving a player a raise.</p>
+    <details class="mb-contrast-details"><summary>Support, basis and unrounded estimates</summary>
       <dl class="mb-contrast-audit">
-        <dt>Salary amounts in US dollars</dt><dd data-mb-contrast-exact></dd>
-        <dt>Estimated range for the difference</dt><dd data-mb-contrast-range></dd>
         <dt>Nearby matched players</dt><dd data-mb-contrast-support></dd>
+        <dt>Unrounded fitted estimates and exported difference</dt><dd data-mb-contrast-precision></dd>
       </dl>
-      <p class="mb-small">Both salary amounts need enough nearby observations. The range concerns the difference between two fitted points, treating the supplied player scores as fixed; it does not measure uncertainty in an individual's impact. For a straight-line reference, the estimated change is the same at every supported salary.</p>
+      <p class="mb-small">Both salaries must have enough nearby matched observations. The range uses the two fitted points jointly; it is not obtained by subtracting two separate interval endpoints. Salary basis and provider scores follow the current view; source records and model details are below.</p>
     </details>
   </details>
   <details data-mb-live-table hidden class="mb-records">
@@ -274,8 +281,15 @@ try {
   .moneyball summary { cursor: pointer; min-height: 48px; padding-block: var(--space-xs); font-family: var(--font-display); font-size: 1.25rem; }
   .moneyball summary:hover { text-decoration: underline; text-underline-offset: .2em; }
   .moneyball details > p { max-width: 75ch; }
-  .mb-extra { padding-bottom: var(--space-s); }
+  .mb-extra { max-width: 52rem; padding-bottom: var(--space-s); }
   .moneyball .mb-extra > p { font-size: 1rem; margin-block: var(--space-2xs); }
+  .mb-scenarios { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-s); border-block: var(--mb-rule); margin-top: var(--space-xs); }
+  .mb-scenarios dl { margin: var(--space-xs) 0; min-width: 0; }
+  .mb-scenarios dt { font-size: var(--type-small); line-height: 1.4; margin-top: var(--space-xs); }
+  .mb-scenarios dt:first-child { font-weight: 600; margin-top: 0; }
+  .mb-scenarios dd { margin: var(--space-2xs) 0 0; font: 1rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .mb-pay-comparison [data-mb-contrast-readout] { font-size: 1.25rem; font-weight: 600; }
+  [data-mb-contrast-precision] { overflow-wrap: anywhere; }
   .mb-pay-comparison p { margin: var(--space-2xs) 0; font: 1.125rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; }
   .mb-pay-comparison p:empty { display: none; }
   .mb-contrast-audit { margin: var(--space-xs) 0; }

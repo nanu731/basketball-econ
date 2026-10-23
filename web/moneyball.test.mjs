@@ -417,15 +417,15 @@ test('salary ticks use readable millions or cap percentages within the unchanged
   assert.deepEqual(salaryTicks(.1, .1, 154647000, 'usd', 5), []);
 });
 
-test('extra-million comparison prioritizes compact endpoints and signed native units', () => {
+test('extra-million comparison shows exact salary scenarios and signed native units', () => {
   const view = fixture().views[0], knot = structuredClone(view.models.war.curve[0]);
   knot.x = .07518518; knot.extraMillion = contrast(true, .1);
   const before = structuredClone(knot), result = salaryComparison(view, 'war', knot);
-  assert.equal(result.salaries, '$7.5M → $8.5M');
+  assert.equal(result.lower, '$7,518,518'); assert.equal(result.higher, '$8,518,518');
   assert.equal(result.difference, '+0.10 estimated wins');
-  assert.match(result.exact, /\$7,518,518.*\$8,518,518/);
-  assert.match(result.aria, /starting at \$7,518,518.*ending at \$8,518,518/);
-  assert.match(result.support, /3 near the starting amount; 3 near the ending amount/);
+  assert.match(result.lowerContribution, /^About -0.25 estimated wins$/); assert.match(result.higherContribution, /^About -0.15 estimated wins$/);
+  assert.match(result.aria, /Lower salary \$7,518,518.*higher salary \$8,518,518/);
+  assert.match(result.support, /3 near the lower salary; 3 near the higher salary/);
   assert.deepEqual(knot, before);
   knot.extraMillion = contrast(true, -.25);
   assert.equal(salaryComparison(view, 'war', knot).difference, '−0.25 estimated wins');
@@ -447,7 +447,7 @@ test('unsupported comparisons never carry zero results and null ranges remain un
   knot.extraMillion = contrast(false); knot.extraMillion.reason = 'insufficient_bracketing';
   const unsupported = salaryComparison(view, 'war', knot);
   assert.match(unsupported.difference, /Comparison unavailable.*not enough nearby salaries/);
-  assert.doesNotMatch(unsupported.difference, /0\.00/); assert.equal(unsupported.range, 'Unavailable');
+  assert.doesNotMatch(unsupported.difference, /0\.00/); assert.match(unsupported.range, /Unavailable.*not enough nearby salaries/);
   knot.extraMillion = { ...contrast(true, -.25), low: null, high: null };
   const noRange = salaryComparison(view, 'war', knot);
   assert.equal(noRange.difference, '−0.25 estimated wins'); assert.equal(noRange.range, 'Unavailable');
@@ -477,4 +477,39 @@ test('slider starting amount is exact and retained for unsupported comparisons',
   const view = fixture().views[0], knot = view.models.war.curve[2];
   assert.equal(salaryComparison(view, 'war', knot).start, '$20,000,000');
   assert.equal(salaryComparison(view, 'war', knot).difference.startsWith('Comparison unavailable'), true);
+});
+
+test('paired salary estimates interpolate the visible curve, retain negative rates and preserve exported rounding', () => {
+  const view = fixture().views[0];
+  const knot = view.models.lebron.curve[0];
+  knot.extraMillion = contrast(true, .07563);
+  // Synthetic endpoint values intentionally round differently from the saved difference.
+  view.models.lebron.curve[0].y = -.632708; view.models.lebron.curve[1].y = .123592;
+  const before = structuredClone(view), copy = salaryComparison(view, 'lebron', knot);
+  assert.equal(copy.lowerContribution, 'About -0.63 impact points/100 possessions');
+  assert.equal(copy.higherContribution, 'About -0.56 impact points/100 possessions');
+  assert.equal(copy.difference, '+0.08 impact points/100 possessions');
+  assert.match(copy.precision, /exported difference: 0.07563/); assert.match(copy.unitNote, /not points actually scored/);
+  assert.deepEqual(view, before);
+  view.window = 3; const multi = salaryComparison(view, 'war', view.models.war.curve[0]);
+  assert.match(multi.lowerContribution, /estimated wins\/observed season/);
+  assert.match(multi.context, /WAR.*Average annual salary.*cap-equivalent/);
+});
+test('unsupported scenarios retain exact salaries but hide both endpoints and joint results', () => {
+  const view = fixture().views[0], knot = view.models.war.curve[2];
+  knot.extraMillion.reason = 'insufficient_bracketing';
+  const copy = salaryComparison(view, 'war', knot);
+  assert.equal(copy.lower, '$20,000,000'); assert.equal(copy.higher, '$21,000,000');
+  for (const field of ['lowerContribution', 'higherContribution', 'difference', 'range']) {
+    assert.match(copy[field], /not enough nearby salaries/); assert.doesNotMatch(copy[field], /NaN|About|0\.00/);
+  }
+  const supported = view.models.war.curve[0]; supported.extraMillion.low = null; supported.extraMillion.high = null;
+  const noRange = salaryComparison(view, 'war', supported);
+  assert.match(noRange.lowerContribution, /^About/); assert.match(noRange.higherContribution, /^About/); assert.equal(noRange.range, 'Unavailable');
+});
+test('constant-step explanation is conditional on the authoritative model name', () => {
+  const view = fixture().views[0], knot = view.models.war.curve[0];
+  assert.doesNotMatch(salaryComparison(view, 'war', knot).shape, /same at every/);
+  view.models.war.name = 'Straight line'; assert.match(salaryComparison(view, 'war', knot).shape, /same at every supported salary.*straight line/);
+  view.models.war.name = 'Unconstrained smooth'; assert.doesNotMatch(salaryComparison(view, 'war', knot).shape, /same at every/);
 });

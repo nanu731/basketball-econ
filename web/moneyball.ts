@@ -207,7 +207,6 @@ export const viewLabel = (v: View): string => v.window === 1 ? seasonLabel(v.end
 // Reuse formatters: rebuilding locale/currency rules for every dot slows filtering.
 const decimalFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 const moneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const compactSalaryFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
 const preciseSalaryFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const percentileFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 export const percentile = (v: number): string => {
@@ -344,18 +343,27 @@ export function salaryTicks(min: number, max: number, cap: number, units: string
 /** Presentation only: use the exported paired difference and support decision. */
 export function salaryComparison(view: View, metric: Metric, knot: Knot) {
   const start = knot.x * view.referenceCapUsd, end = start + 1e6, result = knot.extraMillion;
+  const model = view.models[metric];
   const unit = metric === 'war' ? view.window > 1 ? 'estimated wins/observed season' : 'estimated wins' : 'impact points/100 possessions';
   const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${decimal(Math.abs(value))}`;
+  const unavailable = `Unavailable. ${readableReason(result.reason)}`;
+  // Endpoint values follow the visible interpolant; the exported joint contrast remains authoritative.
+  const lower = result.supported ? interpolate(model.curve, knot.x) : null;
+  const higher = result.supported ? interpolate(model.curve, knot.x + 1e6 / view.referenceCapUsd) : null;
   const difference = result.supported ? `${signed(num(result.estimate))} ${unit}` : `Comparison unavailable. ${readableReason(result.reason)}`;
-  const exact = `${preciseSalaryFormatter.format(start)} → ${preciseSalaryFormatter.format(end)}`;
   return {
-    salaries: `${compactSalaryFormatter.format(start)} → ${compactSalaryFormatter.format(end)}`,
     start: preciseSalaryFormatter.format(start),
-    difference, exact,
-    context: view.window === 1 ? 'Season salary · US dollars' : `Average annual salary · ${seasonLabel(view.endSeason)} cap-equivalent dollars`,
-    range: result.supported && result.low !== null ? `${signed(result.low)} to ${signed(result.high!)} ${unit}` : 'Unavailable',
-    support: `${result.nStart} near the starting amount; ${result.nEnd} near the ending amount`,
-    aria: `Compare salaries starting at ${preciseSalaryFormatter.format(start)}, ending at ${preciseSalaryFormatter.format(end)}; ${difference}`,
+    lower: preciseSalaryFormatter.format(start), higher: preciseSalaryFormatter.format(end),
+    lowerContribution: lower === null ? unavailable : `About ${decimal(lower)} ${unit}`,
+    higherContribution: higher === null ? unavailable : `About ${decimal(higher)} ${unit}`,
+    difference,
+    context: `${viewLabel(view)} · ${metric.toUpperCase()} · ${view.window === 1 ? 'Season salary in US dollars' : `Average annual salary in ${seasonLabel(view.endSeason)} cap-equivalent dollars`}`,
+    range: result.supported ? result.low !== null ? `${signed(result.low)} to ${signed(result.high!)} ${unit}` : 'Unavailable' : unavailable,
+    support: `${result.nStart} near the lower salary; ${result.nEnd} near the higher salary`,
+    shape: model.name === 'Straight line' ? 'The estimated step is the same at every supported salary because the fitted relationship is a straight line.' : 'Choose another lower salary to compare two points on the same league reference.',
+    unitNote: metric === 'war' ? 'WAR estimates wins above a readily available fill-in player, not the team’s actual wins.' : 'LEBRON estimates impact relative to league average per 100 possessions, not points actually scored.',
+    precision: result.supported ? `${model.name}. Lower estimate: ${lower}; higher estimate: ${higher}; exported difference: ${result.estimate}; joint range: ${result.low === null ? 'unavailable' : `${result.low} to ${result.high}`}.` : `${model.name}. ${unavailable}`,
+    aria: `Lower salary ${preciseSalaryFormatter.format(start)}, higher salary ${preciseSalaryFormatter.format(end)}; ${difference}`,
   };
 }
 
@@ -476,7 +484,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
     for (const key of ['selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Salary comparison unavailable.');
-    for (const key of ['start', 'salaries', 'context', 'exact', 'range', 'support']) txt(`contrast-${key}`, '');
+    for (const key of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'context', 'range', 'support', 'shape', 'unitNote', 'precision']) txt(`contrast-${key}`, '');
     slider.max = '0'; slider.value = '0'; slider.setAttribute('aria-valuetext', 'Salary comparison unavailable'); txt('count', 'No interactive player records');
     get('example-buttons').replaceChildren(); get('examples').hidden = true;
     get('selected-key').hidden = true; get('peer-key').dataset.hollow = 'false';
@@ -644,7 +652,7 @@ export function mountMoneyball(root: HTMLElement): void {
     const copy = salaryComparison(active, metric.value as Metric, knot);
     slider.setAttribute('aria-valuetext', `${copy.aria}. ${copy.context}.`);
     txt('contrast-readout', copy.difference);
-    for (const field of ['start', 'salaries', 'context', 'exact', 'range', 'support'] as const) txt(`contrast-${field}`, copy[field]);
+    for (const field of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'] as const) txt(`contrast-${field}`, copy[field]);
   }
   root.querySelector('form')?.addEventListener('submit', e => e.preventDefault());
   get('retry').addEventListener('click', () => { void (index ? changeView() : loadIndex()); });

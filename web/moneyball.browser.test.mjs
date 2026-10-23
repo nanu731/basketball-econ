@@ -20,7 +20,7 @@ async function mountedScenario() {
   const change = (key, value) => { q(key).value = value; q(key).dispatchEvent(new Event('change', { bubbles: true })); };
   const dots = () => [...q('chart').querySelectorAll('circle[data-player]')];
   const reference = () => q('chart').querySelector('.mb-reference')?.getAttribute('d');
-  const fields = ['start', 'salaries', 'context', 'exact', 'range', 'support'];
+  const fields = ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'];
   const choose = player => {
     q('search').value = player.name; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     const option = [...q('suggestions').querySelectorAll('[data-suggestion-index]')].find(el => el.textContent === player.name);
@@ -88,8 +88,24 @@ async function mountedScenario() {
     examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
     const beforeShortcut = q('search').value; q('find-player').click();
     check(document.activeElement === q('search') && q('search').value === beforeShortcut && root.querySelectorAll('input[type=search]').length === 1, 'Find shortcut lost continuity or duplicated search');
+    const pairedComparison = (view, metric) => {
+      const knot = view.models[metric].curve[Number(q('spending').value)], result = knot.extraMillion;
+      const currency = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
+      const dec = v => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+      const signed = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${dec(Math.abs(v))}`;
+      check(q('contrast-lower').textContent === currency(knot.x * view.referenceCapUsd) && q('contrast-higher').textContent === currency(knot.x * view.referenceCapUsd + 1e6), 'Exact salary pair differs from export');
+      if (result.supported) {
+        const x = knot.x + 1e6 / view.referenceCapUsd, curve = view.models[metric].curve, i = curve.findIndex(k => k.x >= x), a = curve[i - 1], b = curve[i];
+        const higher = a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x);
+        check(q('contrast-lowerContribution').textContent.startsWith(`About ${dec(knot.y)} `) && q('contrast-higherContribution').textContent.startsWith(`About ${dec(higher)} `), 'Paired estimates differ from visible interpolation');
+        check(q('contrast-readout').textContent.startsWith(`${signed(result.estimate)} `), 'Difference is not the exported joint contrast');
+        check(result.low === null ? q('contrast-range').textContent === 'Unavailable' : q('contrast-range').textContent.startsWith(`${signed(result.low)} to ${signed(result.high)} `), 'Range is not the exported joint interval');
+      } else check(['lowerContribution', 'higherContribution', 'range'].every(f => q(`contrast-${f}`).textContent.startsWith('Unavailable')), 'Unsupported numeric estimates leaked');
+    };
+    q('extra').open = true; pairedComparison(one, 'war');
+    check(document.documentElement.scrollWidth <= innerWidth + 1 && q('extra').querySelector('.mb-scenarios').getBoundingClientRect().width <= q('extra').getBoundingClientRect().width, 'Worked comparison overflows the page');
     const start = q('contrast-start').textContent; q('spending').value = q('spending').value === '0' ? q('spending').max : '0'; q('spending').dispatchEvent(new Event('input', { bubbles: true }));
-    check(q('contrast-start').textContent && q('contrast-start').textContent !== start, 'Starting salary did not update with slider');
+    check(q('contrast-start').textContent && q('contrast-start').textContent !== start, 'Starting salary did not update with slider'); pairedComparison(one, 'war');
     choose(player); connector();
     const pinnedRank = q('selected-percentile').textContent; hover(dots().find(d => d.dataset.player === peer.id));
     check(hoveredName() === peer.name && q('chart').querySelector('.mb-selected')?.dataset.player === player.id && q('search').value === player.name && q('selected-percentile').textContent === pinnedRank, 'Peer hover replaced the pinned comparison');
@@ -111,13 +127,14 @@ async function mountedScenario() {
     check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
     check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed');
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
-    check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing');
+    check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); pairedComparison(one, 'lebron'); check(q('contrast-unitNote').textContent.includes('not points actually scored'), 'Rate estimate units are unexplained');
     change('window', '3');
     check(fields.every(f => q(`contrast-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
     const multiPlayer = multi.players.find(p => p.id === player.id);
     check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + ' / 100', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
+    pairedComparison(multi, 'lebron'); check(q('contrast-context').textContent.includes('cap-equivalent') && q('contrast-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
     readableMetric(); check(q('period').textContent.includes('averages over observed seasons') && !q('window-note').closest('details'), 'Average context was hidden');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); hover(dots()[0]); change('window', '5'); check(!hoveredName(), 'Loading retained hover');
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
@@ -129,6 +146,7 @@ async function mountedScenario() {
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Retry did not recover');
     check(!q('spending').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
+    const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); pairedComparison((await json(fiveView.url)).views[0], 'lebron');
     q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
     check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls');
     document.body.dataset.moneyballTest = 'passed';
