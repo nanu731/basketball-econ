@@ -55,7 +55,8 @@ browser_view <- function(analysis) {
   points <- window$points
   expected <- lapply(analysis$models, function(model) visible_interpolation(model$knots, model$expected, points$salary_cap_share))
   residual <- list(lebron = points$lebron - expected$lebron, war = points$war - expected$war)
-  label_ids <- unique(c(points$nba_id[head(order(points$reference_salary_usd, decreasing = TRUE), 3)],
+  label_ids <- unique(c(intersect(points$nba_id, c("203999", "1641705", "1629029")),
+    points$nba_id[head(order(points$reference_salary_usd, decreasing = TRUE), 3)],
     points$nba_id[head(order(abs(residual$lebron), decreasing = TRUE), 3)],
     points$nba_id[head(order(abs(residual$war), decreasing = TRUE), 3)]))
   players <- lapply(seq_len(nrow(points)), function(i) {
