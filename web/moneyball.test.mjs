@@ -235,3 +235,15 @@ test('cached number formatters preserve rounding, negatives, large values and mi
   assert.equal(money(987654321.5), '$987,654,322');
   for (const missing of [null, undefined]) { assert.throws(() => decimal(missing), TypeError); assert.throws(() => money(missing), TypeError); }
 });
+
+test('desktop labels prioritize the three requested players before earlier outliers', () => {
+  const source = fixture().views[0].players[0];
+  const players = ['1', '2', '3', '4', '5', '6', '203999', '1641705', '1629029', '999'].map(id => ({ ...source, id, label: true }));
+  const labels = chartLabels(players, '999', 800).map(p => p.id);
+  assert.equal(labels.length, 6); assert.equal(labels.at(-1), '999');
+  for (const id of ['203999', '1641705', '1629029']) assert.ok(labels.slice(0, 5).includes(id));
+  assert.deepEqual(labels.slice(3, 5), ['1', '2']);
+  assert.deepEqual(chartLabels(players, '999', 375).map(p => p.id), ['999']);
+  players.find(p => p.id === '203999').label = false;
+  assert.ok(!chartLabels(players, '', 800).some(p => p.id === '203999'));
+});

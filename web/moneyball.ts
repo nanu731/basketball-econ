@@ -253,9 +253,11 @@ export function resolvePlayerSelection(shown: Pick<Player, 'id'>[], current: str
   if (query.trim() && shown.length === 1) return shown[0].id;
   return shown.some(p => p.id === current) ? current : '';
 }
+const REQUESTED_LABEL_IDS = new Set(['203999', '1641705', '1629029']);
 export function chartLabels(shown: Player[], selected: string, width: number): Player[] {
   const chosen = shown.find(p => p.id === selected);
-  const automatic = width >= 500 ? shown.filter(p => p.label && p.id !== selected).slice(0, 5) : [];
+  const automatic = width >= 500 ? shown.filter(p => p.label && p.id !== selected)
+    .sort((a, b) => Number(REQUESTED_LABEL_IDS.has(b.id)) - Number(REQUESTED_LABEL_IDS.has(a.id))).slice(0, 5) : [];
   // The selected name is painted last so it stays above automatic desktop labels.
   return chosen ? [...automatic, chosen] : automatic;
 }
