@@ -32,6 +32,11 @@ vignettes/*.pdf
 *_cache/
 /cache/
 
+# Provider data and unreviewed derived artifacts stay private until release review.
+/data/raw/
+/data/imports/
+/outputs/
+
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
