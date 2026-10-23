@@ -80,7 +80,7 @@ try {
   </figure>
   <p class="mb-small mb-team" data-mb-team-summary hidden>Team totals count only matched salary and WAR that can be assigned to that team. A traded player's full record may appear among the dots while remaining excluded from the team total.</p>
   <details class="mb-extra" data-mb-extra>
-    <summary>What changes with an extra $1 million?</summary>
+    <summary>Compare salaries $1 million apart</summary>
     <p>Compare two salaries on the same league reference.</p>
     <div class="mb-pay-comparison"><p data-mb-contrast-salaries></p><p data-mb-contrast-readout>No salary comparison is loaded.</p></div>
     <p class="mb-small">This does not predict the effect of a raise.</p>
@@ -155,6 +155,7 @@ try {
   :global(body.project--compact:has(.moneyball) .question-band) { padding-block: var(--space-s); }
   :global(body:has(.moneyball) .question-band .project-question) { margin-top: var(--space-xs); font-size: 1.125rem; line-height: 1.4; }
   :global(body.project--compact:has(.moneyball) .prose-band) { padding-block: var(--space-s) var(--space-l); }
+  :global(body:has(.moneyball) .prose-band .band-inner) { max-width: 90rem; margin-inline: auto; }
   .moneyball.figure { margin-block: 0; }
   .moneyball { color: var(--green); --mb-rule: 1px solid var(--green); }
   .moneyball figure { margin: 0; }
@@ -205,6 +206,7 @@ try {
   .moneyball :global(.mb-reference) { fill: none; stroke: var(--green); stroke-width: 2.5; pointer-events: none; }
   .moneyball :global(.mb-reference-halo) { fill: none; stroke: var(--cream); stroke-width: 5; pointer-events: none; }
   .moneyball :global(.mb-dot) { fill: var(--green); fill-opacity: .75; stroke: var(--cream); stroke-width: .8; cursor: pointer; }
+  .moneyball :global(.mb-peer) { fill: var(--cream); fill-opacity: 1; stroke: var(--green); stroke-opacity: .75; stroke-width: 1.25; }
   .moneyball :global(.mb-selected) { fill: var(--accent); fill-opacity: 1; stroke: var(--green); stroke-width: 2; }
   .moneyball :global(.mb-gap) { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
   .moneyball :global(.mb-gap-base) { fill: var(--cream); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }

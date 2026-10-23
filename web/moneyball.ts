@@ -443,7 +443,7 @@ export function mountMoneyball(root: HTMLElement): void {
   function searchStatus() {
     const chosen = active?.players.find(p => p.id === selected);
     const count = active ? filterPlayers(active, team.value, search.value).length : 0;
-    txt('search-result', chosen ? `Selected ${chosen.name}.` : !suggestionsReady(search.value) ?
+    txt('search-result', chosen ? `Selected ${chosen.name}. Other players remain visible for comparison.` : !suggestionsReady(search.value) ?
       'Type at least two characters. Accents and punctuation are optional.' : count === 0 ?
       'No players found. Try another name, team or season.' : suggestionModel.state.open ?
       `${count} ${count === 1 ? 'match' : 'matches'}. Use the arrow keys and Enter, or choose a name.` : 'Choose a suggested name to select a player.');
@@ -452,11 +452,11 @@ export function mountMoneyball(root: HTMLElement): void {
     suggestionModel.update(search.disabled ? null : active, team.value, search.value);
     renderSuggestions(); searchStatus();
   }
-  function commitPlayer(id: string, focusSearch = false): boolean {
-    const entry = resolveSearchChoice(active, team.value, search.value, id);
+  function commitPlayer(id: string, fromSearch = false): boolean {
+    const entry = resolveSearchChoice(active, team.value, fromSearch ? search.value : '', id);
     if (!entry) { closeSuggestions(); searchStatus(); return false; }
     selected = entry.id; search.value = entry.name;
-    if (focusSearch) search.focus({ preventScroll: true });
+    if (fromSearch) search.focus({ preventScroll: true });
     closeSuggestions(); render(); return true;
   }
   function failure(message: string, preserveChoice = false) {
@@ -524,7 +524,7 @@ export function mountMoneyball(root: HTMLElement): void {
       render();
     } catch { failure(`${seasonLabel(desired.endSeason)} · ${desired.window}-season window is unavailable or failed validation. Change season/window, reset, or retry. The default build snapshot below is separately labeled.`); }
   }
-  function rows(): Player[] { return active ? filterPlayers(active, team.value, search.value) : []; }
+  function rows(): Player[] { return active ? filterPlayers(active, team.value, selected ? '' : search.value) : []; }
   function render() {
     if (!active) return;
     const shown = rows(), m = metric.value as Metric;
@@ -537,9 +537,10 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
     if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${active.models[m].name}. ${active.models[m].method} ${active.models[m].validation} ${active.models[m].intervalLabel} ${bundle.publication.note}`);
     const t = active.teams.find(t => t.team === team.value);
+    const shownPlayers = `${shown.length} ${shown.length === 1 ? 'player' : 'players'}`;
     get('team-summary').hidden = !team.value;
     get('team-audit-panel').hidden = !team.value || !t;
-    txt('team-summary', !team.value ? 'Choose a team to compare its chart players with the matched records we can assign to the club.' : !t || t.status === 'unavailable' ? `${teamName(team.value, active.endSeason)}: ${shown.length} players in the chart; team salary and WAR totals are unavailable.` : `${teamName(t.team, active.endSeason)}: ${shown.length} players in the chart; totals cover ${t.attributablePlayerSeasons} matched player-seasons we can assign to this club. ${money(t.salaryUsd!)} and ${decimal(t.war!)} WAR ${active.window === 1 ? 'in the selected season' : `per year across the full ${active.window}-season window`}. Team totals stay fixed under player search.`);
+    txt('team-summary', !team.value ? 'Choose a team to compare its chart players with the matched records we can assign to the club.' : !t || t.status === 'unavailable' ? `${teamName(team.value, active.endSeason)}: ${shownPlayers} in the chart; team salary and WAR totals are unavailable.` : `${teamName(t.team, active.endSeason)}: ${shownPlayers} in the chart; totals cover ${t.attributablePlayerSeasons} matched player-seasons we can assign to this club. ${money(t.salaryUsd!)} and ${decimal(t.war!)} WAR ${active.window === 1 ? 'in the selected season' : `per year across the full ${active.window}-season window`}. Team totals stay fixed under player search.`);
     txt('team-audit', t ? `Matched team sample: ${t.attributablePlayerSeasons} assigned of ${t.eligiblePlayerSeasons} matched player-seasons. Broader active-source team rows have ${t.excludedTradeCount} trade/unknown-allocation flags and ${t.excludedMissingCount} missing-data flags. Those audit counts may overlap and include ineligible source rows; do not add them as separate groups or subtract them from the chart-player count. ${t.note}` : 'No team audit is loaded.');
     // Hidden rows are built on demand instead of on every search keystroke.
     tableDirty = true;
@@ -584,7 +585,7 @@ export function mountMoneyball(root: HTMLElement): void {
     const path = (points: [number, number][]) => points.map(([a, b], i) => `${i ? 'L' : 'M'}${x(a)},${y(b)}`).join(' ');
     if (curve[0].low !== null) children.push(svg('path', { d: `${path(curve.map(k => [k.x, k.low!]))} ${curve.slice().reverse().map(k => `L${x(k.x)},${y(k.high!)}`).join(' ')} Z`, class: 'mb-band' }));
     const playerDot = (p: Player) => {
-      const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 6 : 3.5, class: p.id === selected ? 'mb-dot mb-selected' : 'mb-dot', 'data-player': p.id });
+      const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 6 : 3.5, class: p.id === selected ? 'mb-dot mb-selected' : selected ? 'mb-dot mb-peer' : 'mb-dot', 'data-player': p.id });
       dot.append(svg('title', {}, `${p.name}: ${decimal(p[m])}; ${money(p.salaryUsd)}`)); return dot;
     };
     for (const p of shown) if (p.id !== selected) children.push(playerDot(p));
