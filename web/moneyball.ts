@@ -222,6 +222,7 @@ export const money = (v: number): string => {
 };
 export const salaryCoverage = (v: View): string => { const c = v.coverage; return `Known active compensation included: ${money(c.includedKnownSalaryUsd)} of ${money(c.allKnownActiveSalaryUsd)} (${c.allKnownActiveSalaryUsd > 0 ? `${decimal(c.includedKnownSalaryUsd / c.allKnownActiveSalaryUsd * 100)}%` : 'coverage undefined: no known-dollar denominator'}). ${c.unknownSalaryPlayerSeasons} player-seasons have unknown salary; ${c.eligiblePlayerSeasons} matched active player-seasons retained from ${c.sourcePlayerSeasons} active source player-seasons. ${v.window > 1 ? 'Both dollar totals are annual ending-season cap-equivalent amounts across the full window. ' : ''}This is known matched-sample coverage, not whole payroll.`; };
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
+export const warOptionLabel = (window: View['window']): string => window === 1 ? 'WAR · total' : 'WAR · average';
 
 export function filterPlayers(view: View, team: string, query: string): Player[] {
   const search = query.trim().toLocaleLowerCase();
@@ -308,6 +309,32 @@ export function chartLabels(shown: Player[], selected: string, width: number): P
   return chosen ? [...automatic, chosen] : automatic;
 }
 
+interface LabelPoint { id: string; name: string; x: number; y: number }
+interface PlacedLabel extends LabelPoint { left: number; right: number; top: number; bottom: number; textWidth: number }
+/** At most six labels and three nearby positions each; no DOM measurements. */
+export function placeChartLabels(points: LabelPoint[], selected: string, width: number, height: number): PlacedLabel[] {
+  const L = 46, R = width - 14, T = 26, B = height - 40;
+  const chosen = points.find(p => p.id === selected);
+  const automatic = points.filter(p => p.id !== selected).slice(0, 5);
+  const ordered = chosen ? [chosen, ...automatic] : automatic;
+  const placed: PlacedLabel[] = [];
+  for (const point of ordered) {
+    // 12px numeric font, plus painted-stroke clearance. Long selected names
+    // retain their text and receive an explicit SVG text width if necessary.
+    const textWidth = Math.min(point.name.length * 7.5 + 4, R - L);
+    const right = point.x > width * (width < 500 ? .5 : .7);
+    const left = Math.max(L, Math.min(R - textWidth, point.x + (right ? -9 - textWidth : 9)));
+    for (const offset of [-10, -34, 18]) {
+      const baseline = Math.max(T + 14, Math.min(B - 4, point.y + offset));
+      const candidate = { ...point, x: left + 2, y: baseline, left, right: left + textWidth, top: baseline - 14, bottom: baseline + 4, textWidth };
+      if (placed.some(p => candidate.left < p.right + 2 && candidate.right + 2 > p.left && candidate.top < p.bottom + 2 && candidate.bottom + 2 > p.top)) continue;
+      placed.push(candidate); break;
+    }
+  }
+  // It was reserved first; paint the selected name last as well.
+  return placed.sort((a, b) => Number(a.id === selected) - Number(b.id === selected));
+}
+
 export function mountMoneyball(root: HTMLElement): void {
   const get = <T extends HTMLElement>(key: string): T => root.querySelector<T>(`[data-mb-${key}]`)!;
   const controls = get<HTMLFieldSetElement>('controls'), status = get('status');
@@ -338,6 +365,7 @@ export function mountMoneyball(root: HTMLElement): void {
     for (const key of ['selected-salary', 'selected-contribution', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Extra $1m comparison unavailable.'); txt('count', 'No interactive player records');
     txt('coverage', ''); txt('model', ''); txt('view-evidence', 'No interactive view evidence loaded.');
+    get('view-sources').replaceChildren(); get('view-source-versions').replaceChildren();
     txt('y-label', 'Contribution · awaiting selected view'); txt('x-label', 'Compensation · awaiting selected view');
     status.textContent = message; get('empty').hidden = false; get('live-table').hidden = true; get('snapshot').hidden = false;
   }
@@ -371,6 +399,15 @@ export function mountMoneyball(root: HTMLElement): void {
       bundle = data; active = data.views[0];
       setControls(true); get('empty').hidden = true; get('snapshot').hidden = true; get('live-table').hidden = false;
       status.textContent = `${data.publication.status === 'private-preview' ? 'Private preview' : 'Reviewed export'} · ${viewLabel(active)}`;
+      get('view-sources').replaceChildren(...data.sources.map(source => {
+        const li = document.createElement('li'), link = document.createElement('a');
+        link.href = source.url; link.rel = 'noreferrer'; link.textContent = source.label;
+        li.append(link, ` · retrieved ${source.retrieved}`); return li;
+      }));
+      get('view-source-versions').replaceChildren(...data.sources.map(source => {
+        const li = document.createElement('li'), code = document.createElement('code'); code.textContent = source.version;
+        li.append(`${source.label}: `, code); return li;
+      }));
       const previousTeam = team.value; team.replaceChildren(option('', 'All teams'), ...[...new Set(active.players.flatMap(p => p.teams))].sort((a, b) => teamName(a, active!.endSeason).localeCompare(teamName(b, active!.endSeason))).map(t => option(t, `${teamName(t, active!.endSeason)} (${t})`)));
       team.value = [...team.options].some(o => o.value === previousTeam) ? previousTeam : '';
       resetContrast();
@@ -388,10 +425,10 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('search-result', search.value.trim() ? shown.length === 1 ? '1 match; player selected.' : shown.length ? `${shown.length} matches; choose a player.` : 'No matching players.' : 'Search by name, then choose if several players match.');
     txt('count', `${shown.length} of ${active.players.length} matched players shown`);
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
-    metric.options[0].textContent = active.window > 1 ? 'WAR · avg estimated wins' : 'WAR · estimated wins';
+    metric.options[0].textContent = warOptionLabel(active.window);
     txt('y-label', m === 'war' ? active.window > 1 ? 'estimated wins / observed season' : 'estimated wins · season total' : 'impact points / 100 possessions'); txt('x-label', units.value === 'share' ? 'Compensation · % of season cap →' : active.window === 1 ? 'Annual compensation · US dollars →' : `Average annual compensation · ${seasonLabel(active.endSeason)} cap-equivalent dollars →`);
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
-    if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${active.models[m].name}. ${active.models[m].method} ${active.models[m].validation} ${active.models[m].intervalLabel} ${bundle.publication.note} Sources: ${bundle.sources.map(s => `${s.label}, ${s.url}, ${s.version}, retrieved ${s.retrieved}`).join('; ')}`);
+    if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${active.models[m].name}. ${active.models[m].method} ${active.models[m].validation} ${active.models[m].intervalLabel} ${bundle.publication.note}`);
     const t = active.teams.find(t => t.team === team.value);
     get('team-summary').hidden = !team.value;
     get('team-audit-panel').hidden = !team.value || !t;
@@ -444,10 +481,12 @@ export function mountMoneyball(root: HTMLElement): void {
       if (curve[0].low !== null) children.push(svg('path', { d: `${path(curve.map(k => [k.x, k.low!]))} ${curve.slice().reverse().map(k => `L${x(k.x)},${y(k.high!)}`).join(' ')} Z`, class: 'mb-band' }));
       children.push(svg('path', { d: path(curve.map(k => [k.x, k.y])), class: 'mb-reference' }));
       for (const p of shown) { const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 7 : 4, class: p.id === selected ? 'mb-dot mb-selected' : 'mb-dot', 'data-player': p.id }); dot.append(svg('title', {}, `${p.name}: ${decimal(p[m])}; ${money(p.salaryUsd)}`)); children.push(dot); }
-      chartLabels(shown, selected, width).forEach((p, i) => {
-        const right = x(p.salaryCapShare) > width * (width < 500 ? .5 : .7);
-        children.push(svg('text', { x: x(p.salaryCapShare) + (right ? -9 : 9), y: Math.max(T + 12, Math.min(height - B - 4, y(p[m]) - 10 - (i % 2) * 12)), 'text-anchor': right ? 'end' : 'start', class: p.id === selected ? 'mb-name mb-selected-name' : 'mb-name' }, p.name));
-      });
+      const labels = chartLabels(shown, selected, width).map(p => ({ id: p.id, name: p.name, x: x(p.salaryCapShare), y: y(p[m]) }));
+      for (const p of placeChartLabels(labels, selected, width, height)) {
+        const attrs: Record<string, string | number> = { x: p.x, y: p.y, 'text-anchor': 'start', class: p.id === selected ? 'mb-name mb-selected-name' : 'mb-name' };
+        if (p.name.length * 7.5 + 4 > p.textWidth) { attrs.textLength = Math.max(1, p.textWidth - 4); attrs.lengthAdjust = 'spacingAndGlyphs'; }
+        children.push(svg('text', attrs, p.name));
+      }
     } else {
       let segment: Knot[] = [];
       const flush = () => { if (!segment.length) return; children.push(svg('path', { d: path(segment.map(k => [k.x, k.extraMillion.estimate!])), class: 'mb-reference' })); for (const k of segment) { if (k.extraMillion.low !== null) children.push(svg('line', { x1: x(k.x), x2: x(k.x), y1: y(k.extraMillion.low!), y2: y(k.extraMillion.high!), class: 'mb-interval' })); children.push(svg('circle', { cx: x(k.x), cy: y(k.extraMillion.estimate!), r: 2.5, class: 'mb-dot' })); } segment = []; };

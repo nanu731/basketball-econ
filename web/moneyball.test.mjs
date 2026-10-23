@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -324,4 +324,40 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
   assert.match(rate.salary, /average\/year/); assert.match(rate.details, /2022–23, 2024–25/);
   assert.match(rate.details, /minutes; .* possessions/);
   assert.match(playerComparisonCopy(player, 'war', multi).contribution, /WAR\/observed season/);
+});
+
+test('WAR control labels distinguish totals and averages without the long unit phrase', () => {
+  assert.equal(warOptionLabel(1), 'WAR · total');
+  assert.equal(warOptionLabel(3), 'WAR · average');
+  assert.equal(warOptionLabel(5), 'WAR · average');
+});
+
+// Pixel coordinates and names below are synthetic collision fixtures.
+const syntheticLabels = count => Array.from({ length: count }, (_, i) => ({ id: String(i), name: `SYNTHETIC PLAYER ${i}`, x: 460, y: 70 }));
+const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+test('clustered labels use bounded nearby positions and omit unresolved lower-priority names', () => {
+  const points = syntheticLabels(6), before = structuredClone(points);
+  const labels = placeChartLabels(points, '', 800, 340);
+  assert.ok(labels.length > 0 && labels.length < points.length);
+  assert.equal(labels[0].id, points[0].id);
+  for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) assert.ok(!overlaps(labels[i], labels[j]));
+  assert.deepEqual(points, before); assert.deepEqual(placeChartLabels(points, '', 800, 340), labels);
+});
+test('selected label wins a crowded position and is always preserved', () => {
+  const labels = placeChartLabels(syntheticLabels(6), '5', 800, 340);
+  assert.ok(labels.some(p => p.id === '5')); assert.equal(labels.at(-1).id, '5');
+  for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) assert.ok(!overlaps(labels[i], labels[j]));
+});
+test('label boxes stay inside plot bounds at top and side edges', () => {
+  const points = [{ id: '1', name: 'SYNTHETIC EDGE', x: 46, y: 26 }, { id: '2', name: 'SYNTHETIC RIGHT', x: 786, y: 26 }];
+  const labels = placeChartLabels(points, '2', 800, 340);
+  assert.equal(labels.length, 2);
+  for (const p of labels) assert.ok(p.left >= 46 && p.right <= 786 && p.top >= 26 && p.bottom <= 300);
+});
+test('phone selected labels remain available and long names fit without layout measurement', () => {
+  const point = { id: '1', name: 'SYNTHETIC VERY LONG SELECTED PLAYER NAME', x: 200, y: 45 };
+  const labels = placeChartLabels([point], '1', 300, 340);
+  assert.equal(labels.length, 1); assert.equal(labels[0].name, point.name);
+  assert.ok(labels[0].left >= 46 && labels[0].right <= 286);
+  assert.ok(labels[0].textWidth <= 240);
 });
