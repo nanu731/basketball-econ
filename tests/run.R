@@ -284,4 +284,104 @@ test("main window eligibility uses total minutes and games without dropping low-
   stopifnot(identical(counts$eligible_players, c(2L, 1L, 0L)))
 })
 
+test("held-out native-unit comparison recovers a line and uses stable player folds for both outcomes", {
+  points <- synthetic_relationship_points("linear")
+  fit <- fit_salary_relationship(points, "war")
+  other <- fit_salary_relationship(points[nrow(points):1, ], "lebron")
+  predicted <- predict_relationship(fit, c(.10, .30))
+  stopifnot(fit$selected_family == "linear", max(abs(predicted - c(-1, 1))) < 1e-8,
+            identical(fit$partitions[[1]]$fold_map, other$partitions[[1]]$fold_map),
+            all(fit$partitions[[1]]$scores$scored_players[fit$partitions[[1]]$scores$available] == nrow(points)),
+            all(fit$partitions[[1]]$scores$scored_players[!fit$partitions[[1]]$scores$available] == 0L))
+})
+
+test("curved visible-line contrasts and bootstrap differences use the same interpolation", {
+  knots <- c(0, .10, .30)
+  central <- c(0, .01, .09)
+  # At .15 the visible line is .03, not the quadratic's .0225.
+  stopifnot(abs(visible_interpolation(knots, central, .15) - .03) < 1e-12)
+  draws <- outer(seq(-1, 1, length.out = 499), c(1, 1, 1)) + matrix(rep(central, each = 499), nrow = 499)
+  result <- bootstrap_visible_intervals(knots, central, draws, at = .10, endpoint = .15)
+  stopifnot(abs(result$contrast - .02) < 1e-12, result$contrast_se < 1e-12,
+            all(result$curve_se > .5), result$valid_refits == 499L)
+})
+
+test("local contrasts require original-data density, bracketing and distinct salaries", {
+  dense <- seq(.10, .15, length.out = 201)
+  supported <- local_contrast_support(dense, c(.10, .125, .149), 154647000)
+  stopifnot(identical(supported$supported, c(FALSE, TRUE, FALSE)),
+            supported$reason[1] == "insufficient_bracketing", supported$reason[3] == "outside_observed_range")
+  sparse_values <- rep(c(.11, .12, .13, .14), each = 10)
+  repeated <- local_contrast_support(sparse_values, .12, 154647000)
+  stopifnot(!repeated$supported, repeated$reason == "too_few_salary_values")
+})
+
+test("an unconstrained selected curve can decrease then increase while a constant contrast stays unavailable", {
+  points <- synthetic_relationship_points("curved", 240L)
+  points$war <- points$war + .02 * sin(seq_len(nrow(points)))
+  fit <- fit_salary_relationship(points, "war")
+  stopifnot(fit$selected_family == "smooth")
+  curve <- relationship_curve(fit, 154647000)
+  left <- which.min(abs(curve$knots - .10)); right <- which.min(abs(curve$knots - .30))
+  stopifnot(curve$support$supported[left], curve$support$supported[right],
+            curve$contrast[left] < 0, curve$contrast[right] > 0)
+  constant <- fit_salary_relationship(synthetic_relationship_points("constant"), "war")
+  flat <- relationship_curve(constant, 154647000)
+  stopifnot(constant$selected_family == "intercept", all(is.na(flat$contrast)),
+            all(flat$support$reason == "constant_model_no_resolved_salary_effect"))
+})
+
+test("coverage distinguishes annual source records from player-window points and known salary amounts", {
+  window <- make_player_window(synthetic_window_dataset(), "2025-26", 2L, prespecified_exposure_rules()$broad)
+  stopifnot(window$coverage$active_player_seasons == 5L, window$coverage$eligible_players == 2L,
+            window$coverage$eligible_player_seasons == 3L,
+            abs(window$coverage$included_known_salary_usd - 30929400) < 1e-6,
+            abs(window$coverage$all_known_active_salary_usd - 31702635) < 1e-6,
+            window$coverage$missing_salary_player_seasons == 1L)
+})
+
+test("single-team attribution requires agreement with one genuine historical salary team", {
+  bytes <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
+  earnings <- normalize_earnings(bytes, "1641705")
+  earnings$provenance <- list(source_url = "https://example.invalid/test", publication_status = "test_only")
+  metric <- jsonlite::fromJSON(rawToChar(fixture_bytes))
+  metric$players$Season <- "2024-25"; metric$players$year <- 2025
+  metric <- normalize_lebron(json_bytes(metric), "2024-25")
+  imported <- earnings_salary_import(list(earnings), metric$players, "2024-25")
+  salary <- reconcile_salary_imports(list(imported), FANSPO_SALARY_DEFINITION)
+  result <- match_player_seasons(metric, salary)
+  a <- result$players[result$players$nba_id == 1641705, ]
+  stopifnot(a$team_attribution_verified, a$attributed_team == "SAS")
+  salary$source_records$source_team_name <- "Los Angeles Lakers"
+  wrong <- match_player_seasons(metric, salary)
+  stopifnot(!wrong$players$team_attribution_verified[wrong$players$nba_id == 1641705])
+})
+
+test("provider CHO alias is valid from 2013-14 without allowing unrelated historical franchises", {
+  stopifnot(identical(canonical_team_codes("CHO/PHO", "2013-14"), c("CHA", "PHX")),
+            identical(team_name_franchise_code(c("San Antonio Spurs", "Toronto Raptors", "Utah Jazz", "Washington Wizards", "New Jersey Nets")),
+                      c("SAS", "TOR", "UTA", "WAS", "BKN")))
+  expect_error(canonical_team_codes("CHO", "2012-13"), "Unsupported")
+  expect_error(canonical_team_codes("BKN", "2009-10"), "Unsupported")
+})
+
+test("bootstrap timing pilots are reproducible cache replays and cannot supply primary intervals", {
+  fit <- fit_salary_relationship(synthetic_relationship_points("linear"), "war")
+  curve <- relationship_curve(fit, 154647000)
+  cache <- tempfile("basketball-bootstrap-test-")
+  pilot <- run_relationship_bootstrap(curve, 2026L, 1L, draws = 25L, cache_dir = cache, pilot = TRUE)
+  replay <- run_relationship_bootstrap(curve, 2026L, 1L, draws = 25L, cache_dir = cache, pilot = TRUE)
+  result <- attach_bootstrap_intervals(curve, pilot)
+  stopifnot(identical(pilot$predictions, replay$predictions), pilot$valid_refits == 25L,
+            all(is.na(result$low)), result$bootstrap$interval_status == "timing_pilot_only")
+})
+
+test("team filtering preserves the full league reference and support counts", {
+  analysis <- analyze_player_window(synthetic_analysis_window(), pilot_only = TRUE,
+                                    cache_dir = tempfile("basketball-analysis-test-"), influence = FALSE)
+  filtered <- select_analysis_players(analysis, team = "SAS")
+  stopifnot(nrow(filtered$window$points) == 40L, identical(filtered$models, analysis$models),
+            identical(filtered$window$coverage, analysis$window$coverage))
+})
+
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))

@@ -14,6 +14,7 @@ match_player_seasons <- function(metrics, salaries, caps = official_caps()) {
   rows$salary_status[is.na(rows$salary_status)] <- "missing_salary_record"
   rows$salary_cap_share <- rows$salary_reported_usd / rows$cap_usd
   rows$team_attribution_status <- ifelse(rows$team_count > 1L, "unallocated_multi_team", "single_team_membership_only")
+  rows <- annotate_single_team_attribution(rows, salaries$source_records)
   # This is input completeness, not a statistically validated exposure threshold.
   rows$data_status <- dplyr::case_when(
     !rows$played ~ "no_playing_time",

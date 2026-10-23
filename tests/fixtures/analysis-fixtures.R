@@ -21,3 +21,23 @@ synthetic_window_dataset <- function() {
        data_origin = "test_fixture", source_provenance = list(),
        salary_label = "SYNTHETIC TEST FIXTURE", publication_status = "unreviewed_do_not_publish")
 }
+
+synthetic_relationship_points <- function(shape = c("linear", "constant", "curved"), n = 80L) {
+  shape <- match.arg(shape)
+  x <- seq(.01, .40, length.out = n)
+  y <- switch(shape, linear = -2 + 10 * x, constant = rep(3, n), curved = 100 * (x - .20)^2)
+  tibble::tibble(nba_id = as.character(seq_len(n)), salary_cap_share = x, war = y, lebron = y / 2)
+}
+
+synthetic_analysis_window <- function() {
+  points <- synthetic_relationship_points("linear")
+  rows <- tibble::tibble(season = "2025-26", nba_id = as.integer(points$nba_id),
+    player_name = paste0("TEST_FIXTURE_", points$nba_id), played = TRUE, minutes = 1000,
+    games = 40L, provider_possessions = 2000, salary_reported_usd = points$salary_cap_share * 154647000,
+    salary_cap_share = points$salary_cap_share, lebron = points$lebron, war = points$war,
+    team_count = 1L, salary_status = "single_source")
+  dataset <- list(players = rows, teams = tibble::tibble(season = "2025-26", nba_id = rows$nba_id,
+    team = rep(c("SAS", "BOS"), each = 40L)), source_provenance = list(),
+    data_origin = "test_fixture", publication_status = "unreviewed_do_not_publish")
+  make_player_window(dataset, "2025-26", 1L, prespecified_exposure_rules()$main)
+}
