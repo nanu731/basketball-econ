@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -146,4 +146,44 @@ test('view loader applies its explicit as-of date to the loaded season', async (
   const index = validateIndex(seasonIndex(2026), AS_OF);
   const loader = createViewLoader(index, async () => seasonFixture(2026), new Date('2026-01-01T00:00:00Z'));
   await assert.rejects(loader.load('2026-1'), /season/);
+});
+
+test('team labels expand current and historical codes without guessing unknown names', () => {
+  assert.equal(teamName('NYK', 2026), 'New York Knicks');
+  assert.equal(teamName('BRK', 2026), 'Brooklyn Nets');
+  assert.equal(teamName('CHA', 2014), 'Charlotte Bobcats');
+  assert.equal(teamName('CHA', 2026), 'Charlotte Hornets');
+  assert.equal(teamName('SYNTHETIC'), 'SYNTHETIC');
+});
+test('unavailable contrast reasons explain the observed-data restriction', () => {
+  assert.match(readableReason('insufficient_bracketing'), /not enough nearby salaries on both sides/);
+  assert.match(readableReason('outside_observed_range'), /outside the observed salary range/);
+  assert.equal(readableReason('synthetic_unknown_reason'), 'Synthetic unknown reason');
+});
+test('initial extra-million position is supported when a supported knot exists', () => {
+  const c = fixture().views[0].models.war.curve;
+  c[0].extraMillion = contrast(false);
+  assert.equal(initialContrastIndex(c), 1);
+  c[1].extraMillion = contrast(false);
+  assert.equal(initialContrastIndex(c), 0);
+});
+test('initial extra-million position chooses the middle supported knot across gaps', () => {
+  const c = Array.from({ length: 7 }, (_, i) => ({ extraMillion: contrast([1, 3, 6].includes(i), .1) }));
+  assert.equal(initialContrastIndex(c), 3);
+});
+test('nice y ticks include zero, stay inside the domain and use readable steps', () => {
+  assert.deepEqual(niceTicks(-3.7, 15.8), [0, 5, 10, 15]);
+  assert.deepEqual(niceTicks(-.11, .23), [-.1, 0, .1, .2]);
+  assert.deepEqual(niceTicks(1.1, 9.2), [2, 4, 6, 8]);
+});
+test('nice y ticks handle negative and flat domains without fabricating zero outside them', () => {
+  const ticks = niceTicks(-9, -1);
+  assert.ok(ticks.length > 0 && ticks.every(t => t >= -9 && t <= -1));
+  assert.ok(!ticks.includes(0));
+  assert.deepEqual(niceTicks(1, 1), []);
+  assert.deepEqual(niceTicks(-Infinity, Infinity), []);
+});
+
+test('default WAR-scale domain keeps readable five-win ticks on both sides of zero', () => {
+  assert.deepEqual(niceTicks(-5.5, 14.7), [-5, 0, 5, 10]);
 });
