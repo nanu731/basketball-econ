@@ -20,7 +20,7 @@ async function mountedScenario() {
   const change = (key, value) => { q(key).value = value; q(key).dispatchEvent(new Event('change', { bubbles: true })); };
   const dots = () => [...q('chart').querySelectorAll('circle[data-player]')];
   const reference = () => q('chart').querySelector('.mb-reference')?.getAttribute('d');
-  const fields = ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'];
+  const fields = ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'];
   const choose = player => {
     q('search').value = player.name; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     const option = [...q('suggestions').querySelectorAll('[data-suggestion-index]')].find(el => el.textContent === player.name);
@@ -97,7 +97,7 @@ async function mountedScenario() {
       if (result.supported) {
         const x = knot.x + 1e6 / view.referenceCapUsd, curve = view.models[metric].curve, i = curve.findIndex(k => k.x >= x), a = curve[i - 1], b = curve[i];
         const higher = a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x);
-        check(q('contrast-lowerContribution').textContent.startsWith(`About ${dec(knot.y)} `) && q('contrast-higherContribution').textContent.startsWith(`About ${dec(higher)} `), 'Paired estimates differ from visible interpolation');
+        check(q('contrast-lowerContribution').textContent === `About ${dec(knot.y)}` && q('contrast-higherContribution').textContent === `About ${dec(higher)}`, 'Paired estimates differ from visible interpolation');
         check(q('contrast-readout').textContent.startsWith(`${signed(result.estimate)} `), 'Difference is not the exported joint contrast');
         check(result.low === null ? q('contrast-range').textContent === 'Unavailable' : q('contrast-range').textContent.startsWith(`${signed(result.low)} to ${signed(result.high)} `), 'Range is not the exported joint interval');
       } else {
@@ -105,6 +105,7 @@ async function mountedScenario() {
         const reason = q('contrast-readout').textContent.replace('Comparison unavailable. ', '');
         check(reason && q('extra').textContent.split(reason).length === 2, 'Unsupported reason is missing or repeated');
       }
+      check(q('contrast-unit').textContent === (metric === 'lebron' ? 'impact points/100 possessions' : view.window > 1 ? 'estimated wins/observed season' : 'estimated wins') && q('contrast-unit').closest('th')?.id === 'mb-scenario-contribution', 'Shared contribution units are missing or wrong');
       check(Math.abs(q('contrast-lower').getBoundingClientRect().top - q('contrast-higher').getBoundingClientRect().top) < 1 && Math.abs(q('contrast-lowerContribution').getBoundingClientRect().top - q('contrast-higherContribution').getBoundingClientRect().top) < 1, 'Paired salary or contribution values lost shared-row alignment');
     };
     q('extra').open = true; pairedComparison(one, 'war');

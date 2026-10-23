@@ -354,8 +354,9 @@ export function salaryComparison(view: View, metric: Metric, knot: Knot) {
   return {
     start: preciseSalaryFormatter.format(start),
     lower: preciseSalaryFormatter.format(start), higher: preciseSalaryFormatter.format(end),
-    lowerContribution: lower === null ? unavailable : `About ${decimal(lower)} ${unit}`,
-    higherContribution: higher === null ? unavailable : `About ${decimal(higher)} ${unit}`,
+    unit,
+    lowerContribution: lower === null ? unavailable : `About ${decimal(lower)}`,
+    higherContribution: higher === null ? unavailable : `About ${decimal(higher)}`,
     difference,
     context: `${viewLabel(view)} · ${metric.toUpperCase()} · ${view.window === 1 ? 'Season salary in US dollars' : `Average annual salary in ${seasonLabel(view.endSeason)} cap-equivalent dollars`}`,
     range: result.supported ? result.low !== null ? `${signed(result.low)} to ${signed(result.high!)} ${unit}` : 'Unavailable' : unavailable,
@@ -484,7 +485,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
     for (const key of ['selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Salary comparison unavailable.');
-    for (const key of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'context', 'range', 'support', 'shape', 'unitNote', 'precision']) txt(`contrast-${key}`, '');
+    for (const key of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision']) txt(`contrast-${key}`, '');
     slider.max = '0'; slider.value = '0'; slider.setAttribute('aria-valuetext', 'Salary comparison unavailable'); txt('count', 'No interactive player records');
     get('example-buttons').replaceChildren(); get('examples').hidden = true;
     get('selected-key').hidden = true; get('peer-key').dataset.hollow = 'false';
@@ -652,7 +653,7 @@ export function mountMoneyball(root: HTMLElement): void {
     const copy = salaryComparison(active, metric.value as Metric, knot);
     slider.setAttribute('aria-valuetext', `${copy.aria}. ${copy.context}.`);
     txt('contrast-readout', copy.difference);
-    for (const field of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'] as const) txt(`contrast-${field}`, copy[field]);
+    for (const field of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'] as const) txt(`contrast-${field}`, copy[field]);
   }
   root.querySelector('form')?.addEventListener('submit', e => e.preventDefault());
   get('retry').addEventListener('click', () => { void (index ? changeView() : loadIndex()); });

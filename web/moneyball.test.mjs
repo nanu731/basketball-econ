@@ -422,8 +422,8 @@ test('extra-million comparison shows exact salary scenarios and signed native un
   knot.x = .07518518; knot.extraMillion = contrast(true, .1);
   const before = structuredClone(knot), result = salaryComparison(view, 'war', knot);
   assert.equal(result.lower, '$7,518,518'); assert.equal(result.higher, '$8,518,518');
-  assert.equal(result.difference, '+0.10 estimated wins');
-  assert.match(result.lowerContribution, /^About -0.25 estimated wins$/); assert.match(result.higherContribution, /^About -0.15 estimated wins$/);
+  assert.equal(result.difference, '+0.10 estimated wins'); assert.equal(result.unit, 'estimated wins');
+  assert.match(result.lowerContribution, /^About -0.25$/); assert.match(result.higherContribution, /^About -0.15$/);
   assert.match(result.aria, /Lower salary \$7,518,518.*higher salary \$8,518,518/);
   assert.match(result.support, /3 near the lower salary; 3 near the higher salary/);
   assert.deepEqual(knot, before);
@@ -486,13 +486,13 @@ test('paired salary estimates interpolate the visible curve, retain negative rat
   // Synthetic endpoint values intentionally round differently from the saved difference.
   view.models.lebron.curve[0].y = -.632708; view.models.lebron.curve[1].y = .123592;
   const before = structuredClone(view), copy = salaryComparison(view, 'lebron', knot);
-  assert.equal(copy.lowerContribution, 'About -0.63 impact points/100 possessions');
-  assert.equal(copy.higherContribution, 'About -0.56 impact points/100 possessions');
+  assert.equal(copy.unit, 'impact points/100 possessions'); assert.equal(copy.lowerContribution, 'About -0.63');
+  assert.equal(copy.higherContribution, 'About -0.56');
   assert.equal(copy.difference, '+0.08 impact points/100 possessions');
   assert.match(copy.precision, /exported difference: 0.07563/); assert.match(copy.unitNote, /not points actually scored/);
   assert.deepEqual(view, before);
   view.window = 3; const multi = salaryComparison(view, 'war', view.models.war.curve[0]);
-  assert.match(multi.lowerContribution, /estimated wins\/observed season/);
+  assert.equal(multi.unit, 'estimated wins/observed season');
   assert.match(multi.context, /WAR.*Average annual salary.*cap-equivalent/);
 });
 test('unsupported scenarios retain exact salaries but hide both endpoints and joint results', () => {
