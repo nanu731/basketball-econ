@@ -23,17 +23,23 @@ try {
     <fieldset disabled data-mb-controls class="mb-controls">
       <legend class="mb-sr">Player comparison controls</legend>
       <div class="mb-primary">
+        <div class="mb-search" data-mb-search-shell>
+          <label for="mb-player-search">Search player</label>
+          <div class="combobox-shell">
+            <input type="search" id="mb-player-search" data-mb-search autocomplete="off" placeholder="Search by name" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="mb-player-suggestions" aria-describedby="mb-search-result" />
+            <div id="mb-player-suggestions" class="suggestion-menu" data-mb-suggestions role="listbox" aria-label="Matched players in this view" hidden></div>
+          </div>
+        </div>
         <label>Contribution<select data-mb-metric><option value="war">WAR · total</option><option value="lebron">LEBRON · rate</option></select></label>
         <label>Season ending<select data-mb-season aria-label="Season ending"><option value="">Awaiting data</option></select></label>
       </div>
+      <p class="mb-small mb-search-help" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result>Type at least two characters. Accents and punctuation are optional.</p>
       <details class="mb-filters">
-        <summary>Find a player or filter the chart</summary>
+        <summary>More filters</summary>
         <div class="mb-secondary">
           <label>Window<select data-mb-window><option value="1">One season</option><option value="3">Three seasons</option><option value="5">Five seasons</option></select></label>
           <label>Salary units<select data-mb-units aria-describedby="mb-salary-help"><option value="usd">US dollars</option><option value="share">% of salary cap</option></select></label>
           <label>Team membership<select data-mb-team><option value="">All teams</option></select></label>
-          <label class="mb-search">Find a player<input type="search" data-mb-search aria-describedby="mb-search-result" autocomplete="off" placeholder="Search by name" /></label>
-          <label class="mb-picker">Choose a player<select data-mb-player aria-describedby="mb-search-result"><option value="">Choose a player</option></select><span class="mb-small" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result>Search by name, then choose if several players match.</span></label>
           <button type="button" data-mb-reset>Reset view</button>
         </div>
         <p class="mb-small mb-note" id="mb-salary-help"><DefinitionHelp id="mb-cap" label="Salary cap / share">The salary cap is the league's season-specific payroll benchmark. Cap share is reported salary divided by that cap. Dollar amounts for one season are the reported salary without inflation adjustment; they are not independently verified cash payments.</DefinitionHelp> puts pay in context. Multi-season dollars use the ending season's cap.</p>
@@ -41,7 +47,7 @@ try {
       </details>
     </fieldset>
   </form>
-  <p class="mb-small mb-phone-hint">On a phone, search or choose a player for exact values.</p>
+  <p class="mb-small mb-phone-hint">Choose a search suggestion or tap a dot for exact values.</p>
   <figure aria-labelledby="mb-chart-title" aria-describedby="mb-caption">
     <h2 id="mb-chart-title" class="mb-sr">Explore player value</h2>
     <div class="mb-chart-layout">
@@ -55,7 +61,7 @@ try {
       </div>
       <aside class="mb-selection" aria-label="Selected player">
         <h3 data-mb-selection-name aria-live="polite">Player comparison</h3>
-        <p data-mb-selection>Search for a player or tap a dot. Use the player selector for an exact comparison.</p>
+        <p data-mb-selection>Choose a search suggestion or tap a dot for a comparison.</p>
         <div data-mb-comparison hidden>
           <dl class="mb-comparison">
             <div><dt>Reported pay</dt><dd data-mb-selected-salary></dd></div>
@@ -150,12 +156,22 @@ try {
   .mb-small, figcaption { font-size: var(--type-small); line-height: 1.5; }
   .mb-heading .mb-small { max-width: 65ch; }
   .mb-controls { border: 0; border-top: var(--mb-rule); margin: 0; padding: 0; min-width: 0; }
-  .mb-primary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-s); max-width: 32rem; padding-block: var(--space-xs); }
-  .mb-secondary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-xs) var(--space-s); padding-block: var(--space-xs); }
+  .mb-primary { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap: var(--space-s); padding-block: var(--space-xs); }
+  .mb-secondary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xs) var(--space-s); padding-block: var(--space-xs); }
   .moneyball .mb-filters { margin: 0; border-top: var(--mb-rule); }
   .moneyball .mb-filters > summary { font: 1rem/1.4 var(--font-body); min-height: 44px; padding-block: var(--space-xs); }
   .mb-controls label, .mb-spending { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; font-size: var(--type-small); }
-  .mb-search, .mb-picker { grid-column: auto; }
+  .mb-search { min-width: 0; }
+  .mb-search > label { margin-bottom: var(--space-2xs); }
+  .combobox-shell { position: relative; min-width: 0; }
+  .moneyball .mb-search-help { margin: 0 0 var(--space-2xs); }
+  .suggestion-menu { position: absolute; z-index: 10; inset-block-start: 100%; inset-inline: 0; max-height: 18rem; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; border: var(--mb-rule); border-top: 0; background: var(--cream); }
+  .suggestion-menu :global(.suggestion-option), .suggestion-menu :global(.no-results) { margin: 0; padding: var(--space-xs) var(--space-s); }
+  .suggestion-menu :global(.suggestion-option) { min-height: 44px; box-sizing: border-box; border-top: 1px solid var(--sand); cursor: pointer; touch-action: manipulation; }
+  .suggestion-menu :global(.suggestion-option:first-child) { border-top: 0; }
+  .suggestion-menu :global(.suggestion-option:hover) { background: var(--sand); }
+  .suggestion-menu :global(.suggestion-option[aria-selected=true]) { background: var(--green); color: var(--cream); }
+  .suggestion-menu :global(.no-results) { font-style: italic; }
   .moneyball select, .moneyball input, .moneyball button { font: inherit; color: inherit; border-radius: 0; min-width: 0; }
   .moneyball select, .moneyball input[type=search], .moneyball button { min-height: 44px; border: var(--mb-rule); background: var(--cream); padding: var(--space-2xs); }
   .moneyball select, .moneyball input[type=search] { width: 100%; font-size: 1rem; }
@@ -238,6 +254,6 @@ try {
   .mb-source-versions :global(code), [data-mb-view-evidence] { overflow-wrap: anywhere; }
   .mb-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (max-width: 60rem) { .mb-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-chart-layout { grid-template-columns: minmax(0, 1fr) 16rem; } }
-  @media (max-width: 44rem) { .mb-phone-hint { display: block; margin-block: 0 var(--space-2xs); font-size: .8125rem; } .mb-heading { display: block; } .mb-heading .mb-small { margin-top: var(--space-2xs); } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-chart-layout { grid-template-columns: minmax(0, 1fr); } .mb-selection { border-left: 0; border-top: var(--mb-rule); } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
+  @media (max-width: 44rem) { .mb-phone-hint { display: block; margin-block: 0 var(--space-2xs); font-size: .8125rem; } .mb-heading { display: block; } .mb-heading .mb-small { margin-top: var(--space-2xs); } .mb-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-chart-layout { grid-template-columns: minmax(0, 1fr); } .mb-selection { border-left: 0; border-top: var(--mb-rule); } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media print { .mb-controls, .mb-extra, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

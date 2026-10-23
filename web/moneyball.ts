@@ -224,9 +224,44 @@ export const salaryCoverage = (v: View): string => { const c = v.coverage; retur
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
 export const warOptionLabel = (window: View['window']): string => window === 1 ? 'WAR · total' : 'WAR · average';
 
+export function normalizePlayerSearch(value: string): string {
+  return value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('en-US')
+    .replace(/[\p{P}\p{S}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+const compactSearch = (value: string): string => normalizePlayerSearch(value).replace(/\s/g, '');
+const suggestionsReady = (query: string): boolean => Array.from(compactSearch(query)).length >= 2;
 export function filterPlayers(view: View, team: string, query: string): Player[] {
-  const search = query.trim().toLocaleLowerCase();
-  return view.players.filter(p => (!team || p.teams.includes(team)) && p.name.toLocaleLowerCase().includes(search));
+  const search = normalizePlayerSearch(query), compact = compactSearch(query);
+  return view.players.filter(p => (!team || p.teams.includes(team)) &&
+    (normalizePlayerSearch(p.name).includes(search) || compactSearch(p.name).includes(compact)));
+}
+export function playerSuggestions(view: View, team: string, query: string): Player[] {
+  if (!suggestionsReady(query)) return [];
+  const search = normalizePlayerSearch(query), compact = compactSearch(query);
+  const starts = (p: Player) => normalizePlayerSearch(p.name).startsWith(search) || compactSearch(p.name).startsWith(compact);
+  const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+  return filterPlayers(view, team, query).sort((a, b) => Number(starts(b)) - Number(starts(a)) ||
+    compare(normalizePlayerSearch(a.name), normalizePlayerSearch(b.name)) || compare(a.id, b.id));
+}
+/** Shared menu state for keyboard handling and context/failure dismissal. */
+export function createPlayerSuggestions() {
+  let state = { open: false, matches: [] as Player[], index: -1 };
+  return {
+    get state(): Readonly<{ open: boolean; matches: readonly Player[]; index: number }> { return state; },
+    update(view: View | null, team: string, query: string) {
+      state = { open: !!view && suggestionsReady(query), matches: view ? playerSuggestions(view, team, query) : [], index: -1 };
+    },
+    close() { state = { open: false, matches: [], index: -1 }; },
+    move(step: -1 | 1) {
+      if (!state.open || !state.matches.length) return;
+      state = { ...state, index: state.index < 0 ? step === 1 ? 0 : state.matches.length - 1 :
+        (state.index + step + state.matches.length) % state.matches.length };
+    },
+    choice(): Player | undefined { return state.open && state.index >= 0 ? state.matches[state.index] : undefined; },
+  };
+}
+export function resolveSearchChoice(view: View | null, team: string, query: string, id: string): Player | undefined {
+  return view ? filterPlayers(view, team, query).find(p => p.id === id) : undefined;
 }
 /** Read existing scores; presentation and filters never calculate a new rank. */
 export function playerComparisonCopy(p: Player, metric: Metric, view: View) {
@@ -295,9 +330,8 @@ export function niceTicks(min: number, max: number, count = 5): number[] {
   return ticks.sort((a, b) => a - b);
 }
 
-/** Reuse an explicit choice across views; a unique name search needs no second click. */
-export function resolvePlayerSelection(shown: Pick<Player, 'id'>[], current: string, query: string): string {
-  if (query.trim() && shown.length === 1) return shown[0].id;
+/** Preserve only an explicit choice that remains valid; typing never commits. */
+export function resolvePlayerSelection(shown: Pick<Player, 'id'>[], current: string): string {
   return shown.some(p => p.id === current) ? current : '';
 }
 const REQUESTED_LABEL_IDS = new Set(['203999', '1641705', '1629029']);
@@ -340,7 +374,8 @@ export function mountMoneyball(root: HTMLElement): void {
   const controls = get<HTMLFieldSetElement>('controls'), status = get('status');
   const season = get<HTMLSelectElement>('season'), windowSelect = get<HTMLSelectElement>('window');
   const metric = get<HTMLSelectElement>('metric'), units = get<HTMLSelectElement>('units');
-  const search = get<HTMLInputElement>('search'), team = get<HTMLSelectElement>('team'), pick = get<HTMLSelectElement>('player');
+  const search = get<HTMLInputElement>('search'), team = get<HTMLSelectElement>('team');
+  const searchShell = get('search-shell'), suggestions = get('suggestions'), suggestionModel = createPlayerSuggestions();
   const chart = get<SVGSVGElement & HTMLElement>('chart'), contrastChart = get<SVGSVGElement & HTMLElement>('contrast');
   const table = get<HTMLTableSectionElement>('rows'), slider = get<HTMLInputElement>('spending');
   const records = get<HTMLDetailsElement>('live-table'), extra = get<HTMLDetailsElement>('extra');
@@ -355,12 +390,54 @@ export function mountMoneyball(root: HTMLElement): void {
   const option = (value: string, label: string) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
   function setControls(ready: boolean) {
     controls.disabled = !index;
-    for (const el of [metric, units, search, team, pick, slider]) el.disabled = !ready;
+    for (const el of [metric, units, search, team, slider]) el.disabled = !ready;
   }
-  function failure(message: string) {
+  function renderSuggestions(scroll = false) {
+    const state = suggestionModel.state;
+    suggestions.hidden = !state.open; search.setAttribute('aria-expanded', String(state.open));
+    search.removeAttribute('aria-activedescendant');
+    if (!state.open) { suggestions.replaceChildren(); return; }
+    const options = state.matches.map((p, index) => {
+      const option = document.createElement('div'); option.id = `${suggestions.id}-option-${p.id}`;
+      option.className = 'suggestion-option'; option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(index === state.index)); option.dataset.suggestionIndex = String(index);
+      option.textContent = p.name; return option;
+    });
+    if (!options.length) {
+      const empty = document.createElement('p'); empty.className = 'no-results'; empty.setAttribute('role', 'option');
+      empty.setAttribute('aria-disabled', 'true'); empty.setAttribute('aria-selected', 'false');
+      empty.textContent = 'No players found. Try another name, team or season.'; suggestions.replaceChildren(empty);
+    } else suggestions.replaceChildren(...options);
+    const chosen = state.matches[state.index];
+    if (chosen) {
+      const id = `${suggestions.id}-option-${chosen.id}`; search.setAttribute('aria-activedescendant', id);
+      if (scroll) suggestions.querySelector<HTMLElement>(`[data-suggestion-index="${state.index}"]`)?.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function closeSuggestions() { suggestionModel.close(); renderSuggestions(); }
+  function searchStatus() {
+    const chosen = active?.players.find(p => p.id === selected);
+    txt('search-result', chosen ? `Selected ${chosen.name}.` : !suggestionsReady(search.value) ?
+      'Type at least two characters. Accents and punctuation are optional.' : suggestionModel.state.open ?
+      `${suggestionModel.state.matches.length} matches. Use the arrow keys and Enter, or choose a name.` : 'Choose a suggested name to select a player.');
+  }
+  function updateSuggestions() {
+    suggestionModel.update(search.disabled ? null : active, team.value, search.value);
+    renderSuggestions(); searchStatus();
+  }
+  function commitPlayer(id: string, focusSearch = false): boolean {
+    const entry = resolveSearchChoice(active, team.value, search.value, id);
+    if (!entry) { closeSuggestions(); searchStatus(); return false; }
+    selected = entry.id; search.value = entry.name;
+    if (focusSearch) search.focus({ preventScroll: true });
+    closeSuggestions(); render(); return true;
+  }
+  function failure(message: string, preserveChoice = false) {
+    if (!preserveChoice) { selected = ''; search.value = ''; }
+    closeSuggestions();
     bundle = null; active = null; setControls(false);
     chart.replaceChildren(); contrastChart.replaceChildren(); table.replaceChildren(); tableDirty = true;
-    pick.replaceChildren(option('', 'Choose a player')); txt('search-result', 'Player choices will return after this view loads.');
+    txt('search-result', 'Player suggestions will return after this view loads.');
     txt('selection-name', 'Player comparison'); get('selection').hidden = false; get('comparison').hidden = true;
     for (const key of ['selected-salary', 'selected-contribution', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Extra $1m comparison unavailable.'); txt('count', 'No interactive player records');
@@ -392,7 +469,7 @@ export function mountMoneyball(root: HTMLElement): void {
     for (const o of windowSelect.options) o.disabled = !allowed.some(v => v.window === Number(o.value));
     if (!allowed.some(v => v.window === Number(windowSelect.value))) windowSelect.value = String(allowed[0].window);
     const desired = allowed.find(v => v.window === Number(windowSelect.value))!;
-    failure(`Loading ${seasonLabel(desired.endSeason)} · ${desired.window}-season window…`);
+    failure(`Loading ${seasonLabel(desired.endSeason)} · ${desired.window}-season window…`, true);
     txt('window-note', `Requested: ending ${seasonLabel(desired.endSeason)}, ${desired.window}-season window. Results appear only after this view passes validation.`);
     try {
       const data = await loader.load(desired.id); if (!data) return;
@@ -410,6 +487,8 @@ export function mountMoneyball(root: HTMLElement): void {
       }));
       const previousTeam = team.value; team.replaceChildren(option('', 'All teams'), ...[...new Set(active.players.flatMap(p => p.teams))].sort((a, b) => teamName(a, active!.endSeason).localeCompare(teamName(b, active!.endSeason))).map(t => option(t, `${teamName(t, active!.endSeason)} (${t})`)));
       team.value = [...team.options].some(o => o.value === previousTeam) ? previousTeam : '';
+      const retained = active.players.find(p => p.id === selected && (!team.value || p.teams.includes(team.value)));
+      selected = retained?.id ?? ''; search.value = retained?.name ?? '';
       resetContrast();
       txt('window-note', active.window === 1 ? `${viewLabel(active)}. Each dot is one matched player-season. Dollars are nominal annual compensation.` : `${viewLabel(active)}. Each dot averages the matched active seasons shown for that player. Pay is adjusted to the ${seasonLabel(active.endSeason)} salary cap; WAR is average annual contribution. LEBRON is a playing-time-weighted rate.`);
       txt('coverage', `${active.coverage.matched} matched salary records among ${active.coverage.eligible} player records meeting playing-time and contribution-metric rules. ${salaryCoverage(active)}${active.coverage.excluded.length ? ` Primary exclusion reasons: ${active.coverage.excluded.map(e => `${e.count}: ${readableReason(e.reason)}`).join('; ')}` : ''}`);
@@ -420,9 +499,7 @@ export function mountMoneyball(root: HTMLElement): void {
   function render() {
     if (!active) return;
     const shown = rows(), m = metric.value as Metric;
-    selected = resolvePlayerSelection(shown, selected, search.value);
-    pick.replaceChildren(option('', 'Choose a player'), ...shown.map(p => option(p.id, p.name))); pick.value = selected;
-    txt('search-result', search.value.trim() ? shown.length === 1 ? '1 match; player selected.' : shown.length ? `${shown.length} matches; choose a player.` : 'No matching players.' : 'Search by name, then choose if several players match.');
+    selected = resolvePlayerSelection(shown, selected); searchStatus();
     txt('count', `${shown.length} of ${active.players.length} matched players shown`);
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
     metric.options[0].textContent = warOptionLabel(active.window);
@@ -446,7 +523,7 @@ export function mountMoneyball(root: HTMLElement): void {
       const copy = playerComparisonCopy(p, m, active);
       for (const field of ['salary', 'contribution', 'gap', 'percentile', 'cohort', 'observed', 'details'] as const) txt(`selected-${field}`, copy[field]);
       get('selected-observed').hidden = active.window === 1;
-    } else txt('selection', 'Search for a player or tap a dot for a comparison.');
+    } else txt('selection', 'Choose a search suggestion or tap a dot for a comparison.');
     draw(chart, false); if (extra.open) draw(contrastChart, true); contrastReadout();
   }
   function renderTable() {
@@ -471,7 +548,7 @@ export function mountMoneyball(root: HTMLElement): void {
     if (!values.length) { target.replaceChildren(svg('title', {}, 'No locally supported extra $1m comparisons'), svg('text', { x: 12, y: 40, 'font-size': 13 }, 'No supported comparisons. See explanation below.')); return; }
     const min = Math.min(0, ...values), max = Math.max(0, ...values), span = max - min || 1, ymin = min - span * .08, ymax = max + span * .08;
     const x = (v: number) => L + (v - xmin) / (xmax - xmin || 1) * (width - L - R), y = (v: number) => T + (ymax - v) / (ymax - ymin) * (height - T - B);
-    const children: SVGElement[] = [svg('title', {}, extra ? 'Change in fitted contribution associated with an extra $1 million' : `Salary and ${metricLabel(m, active)}`), svg('desc', {}, extra ? 'Only supported spending positions are drawn. Intervals describe conditional curve differences.' : 'Dots represent matched players. Dashed line is the fixed league reference. Use the player selector or table for keyboard access.')];
+    const children: SVGElement[] = [svg('title', {}, extra ? 'Change in fitted contribution associated with an extra $1 million' : `Salary and ${metricLabel(m, active)}`), svg('desc', {}, extra ? 'Only supported spending positions are drawn. Intervals describe conditional curve differences.' : 'Dots represent matched players. Dashed line is the fixed league reference. Use player search or the table for keyboard access.')];
     for (const v of niceTicks(ymin, ymax)) { children.push(svg('line', { x1: L, x2: width - R, y1: y(v), y2: y(v), class: 'mb-grid' }), svg('text', { x: L - 7, y: y(v) + 4, 'text-anchor': 'end' }, String(Number(v.toPrecision(8))))); }
     const ticks = width < 500 ? 2 : 4;
     for (let i = 0; i <= ticks; i++) { const v = xmin + (xmax - xmin) * i / ticks; children.push(svg('text', { x: x(v), y: height - 13, 'text-anchor': i === 0 ? 'start' : i === ticks ? 'end' : 'middle' }, units.value === 'share' ? `${Math.round(v * 100)}%` : `$${(v * active.referenceCapUsd / 1e6).toFixed(0)}m`)); }
@@ -510,13 +587,51 @@ export function mountMoneyball(root: HTMLElement): void {
   root.querySelector('form')?.addEventListener('submit', e => e.preventDefault());
   get('retry').addEventListener('click', () => { void (index ? changeView() : loadIndex()); });
   season.addEventListener('change', changeView); windowSelect.addEventListener('change', changeView);
-  metric.addEventListener('change', () => { resetContrast(); render(); });
-  for (const el of [units, team]) el.addEventListener('change', render);
-  search.addEventListener('input', render); pick.addEventListener('change', () => { selected = pick.value; render(); });
+  metric.addEventListener('change', () => { closeSuggestions(); resetContrast(); render(); });
+  units.addEventListener('change', () => { closeSuggestions(); render(); });
+  team.addEventListener('change', () => {
+    closeSuggestions();
+    if (selected && active && !active.players.some(p => p.id === selected && (!team.value || p.teams.includes(team.value)))) { selected = ''; search.value = ''; }
+    render();
+  });
+  search.addEventListener('input', () => { selected = ''; render(); updateSuggestions(); });
+  search.addEventListener('focus', updateSuggestions); search.addEventListener('click', updateSuggestions);
+  search.addEventListener('keydown', event => {
+    if (event.isComposing || search.disabled || !active) return;
+    if (event.key === 'Tab' || event.key === 'Escape') {
+      if (event.key === 'Escape') event.preventDefault(); closeSuggestions(); searchStatus(); return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (!suggestionsReady(search.value)) return;
+      event.preventDefault(); if (!suggestionModel.state.open) updateSuggestions();
+      suggestionModel.move(event.key === 'ArrowDown' ? 1 : -1); renderSuggestions(true); searchStatus(); return;
+    }
+    if (event.key === 'Enter' && suggestionModel.state.open) {
+      event.preventDefault(); const entry = suggestionModel.choice(); if (entry) commitPlayer(entry.id, true);
+    }
+  });
+  suggestions.addEventListener('mousedown', event => { if (event.target instanceof Element && event.target.closest('[data-suggestion-index]')) event.preventDefault(); });
+  suggestions.addEventListener('click', event => {
+    const option = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-suggestion-index]') : null;
+    const index = Number(option?.dataset.suggestionIndex);
+    const entry = suggestionModel.state.open && Number.isSafeInteger(index) ? suggestionModel.state.matches[index] : undefined;
+    if (entry) commitPlayer(entry.id, true);
+  });
+  document.addEventListener('pointerdown', event => {
+    if (suggestionModel.state.open && event.target instanceof Node && !searchShell.contains(event.target)) { closeSuggestions(); searchStatus(); }
+  });
+  searchShell.addEventListener('focusout', event => {
+    if (event.relatedTarget instanceof Node && !searchShell.contains(event.relatedTarget)) { closeSuggestions(); if (active) searchStatus(); }
+  });
   slider.addEventListener('input', () => { contrastReadout(); if (extra.open) draw(contrastChart, true); });
   records.addEventListener('toggle', () => { if (records.open) renderTable(); });
   extra.addEventListener('toggle', () => { if (extra.open) draw(contrastChart, true); });
-  const choose = (e: Event) => { const target = e.target instanceof Element ? e.target.closest('[data-player]') : null; if (target) { selected = (target as HTMLElement).dataset.player ?? ''; render(); } };
+  const choose = (e: Event) => {
+    const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-player]') : null;
+    if (target && commitPlayer(target.dataset.player ?? '') && e.currentTarget === table) {
+      table.querySelector<HTMLButtonElement>(`[data-player="${selected}"]`)?.focus({ preventScroll: true });
+    }
+  };
   chart.addEventListener('click', choose); table.addEventListener('click', choose);
   get('reset').addEventListener('click', () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = 'war'; units.value = 'usd'; search.value = ''; team.value = ''; selected = ''; changeView(); });
   let frame = 0;

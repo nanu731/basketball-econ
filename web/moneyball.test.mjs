@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -197,24 +197,14 @@ test('salary coverage distinguishes retained matched seasons from playing-time e
   assert.equal(copy.match(/unknown salary/g)?.length, 1);
 });
 
-test('a unique nonempty name search selects its player without another action', () => {
-  assert.equal(resolvePlayerSelection([{ id: '11' }], '', 'Synthetic name'), '11');
-  assert.equal(resolvePlayerSelection([{ id: '11' }], '22', 'Synthetic name'), '11');
+test('typing an exact or unique match never commits a selection', () => {
+  assert.equal(resolvePlayerSelection([{ id: '11' }], ''), '');
+  assert.equal(resolvePlayerSelection([{ id: '11' }], '22'), '');
 });
-test('multiple search matches require an explicit choice and preserve a valid prior choice', () => {
-  const shown = [{ id: '11' }, { id: '22' }];
-  assert.equal(resolvePlayerSelection(shown, '', 'Synthetic'), '');
-  assert.equal(resolvePlayerSelection(shown, '22', 'Synthetic'), '22');
-});
-test('an empty search does not auto-select the only remaining player', () => {
-  assert.equal(resolvePlayerSelection([{ id: '11' }], '', ''), '');
-  assert.equal(resolvePlayerSelection([{ id: '11' }], '', '  '), '');
-});
-test('selected NBA identity survives a changed view only while it passes the new filters', () => {
-  const nextViewRows = [{ id: '22' }, { id: '11' }];
-  assert.equal(resolvePlayerSelection(nextViewRows, '11', ''), '11');
-  assert.equal(resolvePlayerSelection([{ id: '22' }], '11', ''), '');
-  assert.equal(resolvePlayerSelection([], '11', 'Synthetic'), '');
+test('an explicit selected ID survives only while valid in the new cohort/filter', () => {
+  assert.equal(resolvePlayerSelection([{ id: '22' }, { id: '11' }], '11'), '11');
+  assert.equal(resolvePlayerSelection([{ id: '22' }], '11'), '');
+  assert.equal(resolvePlayerSelection([], '11'), '');
 });
 test('phone chart labels show only the selected player while desktop retains automatic labels', () => {
   const source = fixture().views[0].players[0];
@@ -286,7 +276,8 @@ test('team and search selection retain the full-cohort scores and denominator', 
   const v = validateBundle(rankedFixture()).views[0];
   const original = structuredClone(v.players);
   const shown = filterPlayers(v, 'TEST', '  SYNTHETIC 0  ');
-  assert.equal(resolvePlayerSelection(shown, '', 'SYNTHETIC 0'), shown[0].id);
+  assert.equal(resolvePlayerSelection(shown, ''), '');
+  assert.equal(resolveSearchChoice(v, 'TEST', 'SYNTHETIC 0', shown[0].id)?.id, shown[0].id);
   assert.equal(shown[0].valuePercentile.lebron, 12.5);
   assert.equal(v.players.length, 4); assert.deepEqual(v.players, original);
 });
@@ -360,4 +351,58 @@ test('phone selected labels remain available and long names fit without layout m
   assert.equal(labels.length, 1); assert.equal(labels[0].name, point.name);
   assert.ok(labels[0].left >= 46 && labels[0].right <= 286);
   assert.ok(labels[0].textWidth <= 240);
+});
+
+function syntheticSearchView() {
+  const view = rankedFixture([-3, 0, 0, 2]).views[0];
+  const names = ['Joël SYNTHETIC', 'A. Jo-SYNTHETIC', 'Jokić SYNTHETIC', 'JOEL SYNTHETIC'];
+  view.players.forEach((p, i) => { p.name = names[i]; });
+  return view;
+}
+test('search follows the incumbent accent/punctuation normalization and compact matching', () => {
+  assert.equal(normalizePlayerSearch('  JoëL—SYNTHETIC  '), 'joel synthetic');
+  assert.equal(normalizePlayerSearch('Jo\u0065\u0308l'), 'joel');
+  const view = syntheticSearchView();
+  assert.deepEqual(playerSuggestions(view, '', 'joel').map(p => p.id), [view.players[0].id, view.players[3].id]);
+  assert.deepEqual(playerSuggestions(view, '', 'ajosy').map(p => p.id), [view.players[1].id]);
+  assert.equal(filterPlayers(view, '', 'JOKIC')[0].id, view.players[2].id);
+});
+test('suggestions require two normalized non-space characters and sort prefixes before substrings', () => {
+  const view = syntheticSearchView(), before = structuredClone(view);
+  for (const query of ['', ' ', '-', 'j', ' j- ', 'é', 'e\u0301-']) assert.deepEqual(playerSuggestions(view, '', query), []);
+  const suggestions = playerSuggestions(view, '', 'jo');
+  assert.deepEqual(suggestions.map(p => p.id), [view.players[0].id, view.players[3].id, view.players[2].id, view.players[1].id]);
+  assert.deepEqual(playerSuggestions(view, '', 'jo'), suggestions);
+  assert.deepEqual(view, before);
+});
+test('keyboard suggestion state wraps, requires an active option for Enter and clears on dismissal', () => {
+  const menu = createPlayerSuggestions(), view = syntheticSearchView();
+  menu.update(view, '', 'j'); menu.move(1);
+  assert.equal(menu.state.open, false); assert.equal(menu.choice(), undefined);
+  menu.update(view, '', 'jo');
+  assert.equal(menu.state.open, true); assert.equal(menu.state.index, -1); assert.equal(menu.choice(), undefined);
+  menu.move(-1); assert.equal(menu.choice()?.id, menu.state.matches.at(-1).id);
+  menu.move(1); assert.equal(menu.state.index, 0);
+  menu.move(-1); assert.equal(menu.state.index, menu.state.matches.length - 1);
+  menu.close(); assert.equal(menu.state.open, false); assert.equal(menu.state.index, -1); assert.equal(menu.choice(), undefined); assert.deepEqual(menu.state.matches, []);
+  menu.update(view, '', 'joel'); assert.equal(menu.choice(), undefined);
+});
+test('empty matches and changed context cannot retain a navigable stale option', () => {
+  const menu = createPlayerSuggestions(), view = syntheticSearchView();
+  menu.update(view, '', 'jo'); menu.move(1); assert.ok(menu.choice());
+  menu.update(view, '', 'nothing synthetic'); menu.move(1);
+  assert.equal(menu.state.open, true); assert.equal(menu.state.index, -1); assert.equal(menu.choice(), undefined);
+  menu.update(view, '', 'jo'); menu.move(1);
+  menu.update(null, '', 'jo'); assert.equal(menu.state.open, false); assert.equal(menu.choice(), undefined);
+  menu.update(view, '', 'jo'); menu.move(1);
+  menu.update(view, 'MISSING_SYNTHETIC_TEAM', 'jo'); assert.equal(menu.choice(), undefined); assert.equal(menu.state.index, -1);
+});
+test('committing a suggestion rechecks the current query team and view without changing cohort data', () => {
+  const view = syntheticSearchView(), before = structuredClone(view), id = view.players[0].id;
+  assert.equal(resolveSearchChoice(view, 'TEST', 'joel', id)?.id, id);
+  assert.equal(resolveSearchChoice(view, 'OTHER', 'joel', id), undefined);
+  assert.equal(resolveSearchChoice(view, '', 'jokic', id), undefined);
+  assert.equal(resolveSearchChoice({ ...view, players: view.players.slice(1) }, '', 'joel', id), undefined);
+  assert.equal(resolveSearchChoice(null, '', 'joel', id), undefined);
+  assert.deepEqual(view, before);
 });
