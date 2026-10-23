@@ -1,0 +1,4 @@
+season,nba_id,source_player_id,salary_reported_usd,contract_type
+2025-26,1641705,TEST_FIXTURE_A,15464700,rookie
+2025-26,1629029,TEST_FIXTURE_B,,two_way
+2025-26,,TEST_FIXTURE_UNMAPPED,100000,unknown

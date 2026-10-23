@@ -77,4 +77,74 @@ test("cached request scope cannot silently introduce a provider minutes filter",
   expect_error(read_lebron_snapshot(snapshot$manifest_path), "source/request mismatch")
 })
 
+test("salary import retains unknown identities and missing two-way amounts", {
+  salaries <- read_salary_import("tests/fixtures/salaries.csv", "tests/fixtures/salaries.metadata.json")
+  stopifnot(nrow(salaries$records) == 3L,
+            salaries$records$salary_reported_usd[salaries$records$source_player_id == "TEST_FIXTURE_A"] == 15464700,
+            is.na(salaries$records$salary_reported_usd[salaries$records$source_player_id == "TEST_FIXTURE_B"]),
+            salaries$records$contract_type[salaries$records$source_player_id == "TEST_FIXTURE_B"] == "two_way",
+            salaries$records$identity_status[salaries$records$source_player_id == "TEST_FIXTURE_UNMAPPED"] == "unmapped")
+})
+
+test("salary disagreement stays unresolved instead of selecting a convenient source", {
+  a <- read_salary_import("tests/fixtures/salaries.csv", "tests/fixtures/salaries.metadata.json")
+  csv_b <- tempfile(fileext = ".csv")
+  meta_b <- tempfile(fileext = ".json")
+  writeLines(c("season,nba_id,source_player_id,salary_reported_usd,contract_type",
+               "2025-26,1641705,TEST_FIXTURE_A_SECOND_SOURCE,20000000,rookie"), csv_b)
+  metadata <- jsonlite::fromJSON("tests/fixtures/salaries.metadata.json", simplifyVector = FALSE)
+  metadata$source_id <- "test_fixture_b"
+  writeBin(json_bytes(metadata), meta_b)
+  b <- read_salary_import(csv_b, meta_b)
+  result <- reconcile_salary_imports(list(a, b), "test_annual_compensation")
+  row <- result$players[result$players$nba_id == 1641705, ]
+  stopifnot(row$salary_status == "conflict", is.na(row$salary_reported_usd),
+            row$reported_sources == 2L, nrow(result$unmapped) == 1L)
+  expect_error(reconcile_salary_imports(list(a, b), "another_definition"), "different salary definitions")
+})
+
+test("matching uses the official season cap and never duplicates a traded player's annual record", {
+  metric <- normalize_lebron(fixture_bytes, "2025-26")
+  salaries <- reconcile_salary_imports(list(read_salary_import("tests/fixtures/salaries.csv", "tests/fixtures/salaries.metadata.json")), "test_annual_compensation")
+  result <- match_player_seasons(metric, salaries)
+  a <- result$players[result$players$nba_id == 1641705, ]
+  b <- result$players[result$players$nba_id == 1629029, ]
+  stopifnot(nrow(result$players) == 2L, a$salary_cap_share == 0.10, a$war == -0.5,
+            a$data_status == "matched_inputs", is.na(b$salary_reported_usd),
+            b$team_attribution_status == "unallocated_multi_team",
+            result$coverage$salary_matched_active == 1L,
+            result$coverage$missing_salary_active == 1L)
+  caps <- official_caps()
+  stopifnot(nrow(caps) == 17L, caps$cap_usd[caps$season == "2009-10"] == 57700000,
+            caps$cap_usd[caps$season == "2025-26"] == 154647000)
+})
+
+test("salary units are explicit and a reported zero remains distinct from missing", {
+  csv <- tempfile(fileext = ".csv")
+  writeLines(c("season,nba_id,source_player_id,salary_reported_usd,contract_type",
+               "2025-26,1641705,TEST_FIXTURE_ZERO,0,unknown"), csv)
+  zero <- read_salary_import(csv, "tests/fixtures/salaries.metadata.json")
+  stopifnot(zero$records$salary_reported_usd == 0, !is.na(zero$records$salary_reported_usd))
+  writeLines(c("season,nba_id,source_player_id,salary_reported_usd,contract_type",
+               "2025-26,1641705,TEST_FIXTURE_BAD_UNIT,15.46m,unknown"), csv)
+  expect_error(read_salary_import(csv, "tests/fixtures/salaries.metadata.json"), "no unit guessing")
+})
+
+test("private export round-trip preserves unavailable salaries and prohibits release claims", {
+  metric <- normalize_lebron(fixture_bytes, "2025-26")
+  dataset <- match_player_seasons(metric, reconcile_salary_imports())
+  files <- write_private_dataset(dataset, tempfile("basketball-private-test-"))
+  restored <- readRDS(files$dataset_path)
+  summary <- jsonlite::fromJSON(files$summary_path)
+  stopifnot(identical(restored, dataset), all(is.na(restored$players$salary_reported_usd)),
+            restored$coverage$salary_matched_active == 0L,
+            is.na(restored$coverage$reported_salary_matched_sample_usd),
+            summary$model_status == "not_fitted",
+            summary$publication_status == "unreviewed_do_not_publish")
+  again <- write_private_dataset(dataset, dirname(files$dataset_path))
+  stopifnot(identical(files$dataset_sha256, again$dataset_sha256))
+  writeBin(charToRaw("{}"), files$summary_path)
+  expect_error(write_private_dataset(dataset, dirname(files$dataset_path)), "summary checksum")
+})
+
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))
