@@ -593,7 +593,9 @@ export function mountMoneyball(root: HTMLElement): void {
     if (!shown.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.textContent = 'No players match these filters. Clear the search or reset the view.'; tr.append(td); table.append(tr); }
     tableDirty = false;
   }
+  function clearHover() { chart.querySelector('.mb-hover')?.remove(); }
   function draw() {
+    clearHover();
     if (!active) return;
     const m = metric.value as Metric, curve = active.models[m].curve, all = active.players, shown = rows();
     const bounds = chart.getBoundingClientRect(), width = Math.max(260, Math.round(bounds.width)), height = Math.max(340, Math.round(bounds.height));
@@ -602,15 +604,16 @@ export function mountMoneyball(root: HTMLElement): void {
     const values = [...all.map(p => p[m]), ...curve.flatMap(k => [k.y, k.low ?? k.y, k.high ?? k.y])];
     const min = Math.min(0, ...values), max = Math.max(0, ...values), span = max - min || 1, ymin = min - span * .08, ymax = max + span * .08;
     const x = (v: number) => L + (v - xmin) / (xmax - xmin || 1) * (width - L - R), y = (v: number) => T + (ymax - v) / (ymax - ymin) * (height - T - B);
-    const children: SVGElement[] = [svg('title', {}, `Salary and ${metricLabel(m, active)}`), svg('desc', {}, 'Dots represent matched players. The solid line is the fixed salary reference. A selected player has a vertical connector to that same line. Use player search or the table for keyboard access.')];
+    chart.setAttribute('aria-label', `Salary and ${metricLabel(m, active)}`);
+    const children: SVGElement[] = [svg('desc', {}, 'Dots represent matched players. The solid line is the fixed salary reference. A selected player has a vertical connector to that same line. Use player search or the table for keyboard access.')];
     for (const v of niceTicks(ymin, ymax)) children.push(svg('line', { x1: L, x2: width - R, y1: y(v), y2: y(v), class: 'mb-grid' }), svg('text', { x: L - 7, y: y(v) + 4, 'text-anchor': 'end' }, String(Number(v.toPrecision(8)))));
     for (const tick of salaryTicks(xmin, xmax, active.referenceCapUsd, units.value, width < 500 ? 3 : 5)) children.push(svg('text', { x: x(tick.x), y: height - 13, 'text-anchor': tick.x === xmin ? 'start' : x(tick.x) > width - 40 ? 'end' : 'middle' }, tick.label));
     children.push(svg('line', { x1: L, x2: width - R, y1: y(0), y2: y(0), class: 'mb-zero' }));
     const path = (points: [number, number][]) => points.map(([a, b], i) => `${i ? 'L' : 'M'}${x(a)},${y(b)}`).join(' ');
     if (curve[0].low !== null) children.push(svg('path', { d: `${path(curve.map(k => [k.x, k.low!]))} ${curve.slice().reverse().map(k => `L${x(k.x)},${y(k.high!)}`).join(' ')} Z`, class: 'mb-band' }));
     const playerDot = (p: Player) => {
-      const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 6 : 3.5, class: p.id === selected ? 'mb-dot mb-selected' : selected ? 'mb-dot mb-peer' : 'mb-dot', 'data-player': p.id });
-      dot.append(svg('title', {}, `${p.name}: ${decimal(p[m])}; ${money(p.salaryUsd)}`)); return dot;
+      const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 6 : 3.5, class: p.id === selected ? 'mb-dot mb-selected' : selected ? 'mb-dot mb-peer' : 'mb-dot', 'data-player': p.id, role: 'img', 'aria-label': `${p.name}: ${decimal(p[m])}; ${money(p.salaryUsd)}` });
+      return dot;
     };
     for (const p of shown) if (p.id !== selected) children.push(playerDot(p));
     const referencePath = path(curve.map(k => [k.x, k.y]));
@@ -690,6 +693,26 @@ export function mountMoneyball(root: HTMLElement): void {
       table.querySelector<HTMLButtonElement>(`[data-player="${selected}"]`)?.focus({ preventScroll: true });
     }
   };
+  chart.addEventListener('pointerover', event => {
+    clearHover();
+    if (event.pointerType === 'touch' || !active) return;
+    const dot = event.target instanceof Element ? event.target.closest<SVGCircleElement>('circle[data-player]') : null;
+    const player = dot && chart.contains(dot) ? active.players.find(p => p.id === dot.dataset.player) : undefined;
+    if (!dot || !player) return;
+    const { width, height } = chart.viewBox.baseVal;
+    const label = svg('g', { class: 'mb-hover', 'aria-hidden': 'true' });
+    const text = svg('text', { x: 8, y: 19 }, player.name); label.append(text); chart.append(label);
+    const measured = text.getComputedTextLength(), boxWidth = Math.min(width - 16, measured + 16);
+    if (measured > boxWidth - 16) { text.setAttribute('textLength', String(boxWidth - 16)); text.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+    const x = Math.max(8, Math.min(width - boxWidth - 8, Number(dot.getAttribute('cx')) - boxWidth / 2));
+    const y = Math.max(8, Math.min(height - 36, Number(dot.getAttribute('cy')) - 38));
+    label.setAttribute('transform', `translate(${x},${y})`);
+    label.prepend(svg('rect', { width: boxWidth, height: 28 }));
+  });
+  chart.addEventListener('pointerout', clearHover);
+  chart.addEventListener('pointerleave', clearHover);
+  chart.addEventListener('pointerdown', event => { if (event.pointerType === 'touch') clearHover(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') clearHover(); });
   chart.addEventListener('click', choose); table.addEventListener('click', choose); get('example-buttons').addEventListener('click', choose);
   get('find-player').addEventListener('click', () => { search.focus({ preventScroll: true }); search.scrollIntoView({ block: 'center', behavior: 'instant' }); });
   get('reset').addEventListener('click', () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = 'war'; units.value = 'usd'; search.value = ''; team.value = ''; selected = ''; changeView(); });
