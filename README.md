@@ -8,7 +8,7 @@ The first release covers completed regular seasons. Playoffs are deferred. Salar
 
 ## Reproduction
 
-Run scripts from the repository root. The pipeline uses R 4.6 or newer (for its checksum helper) with `dplyr`, `tibble`, `jsonlite`, `httr2` and `mgcv`. It does not install packages automatically. Provider snapshots, manifests and private analysis artifacts remain outside Git.
+Run scripts from the repository root. The pipeline uses R 4.6 or newer (for its checksum helper) with `dplyr`, `tibble`, `jsonlite`, `httr2` and `mgcv`; diagnostic plots and tables also use `ggplot2` and `readr`. It does not install packages automatically. Provider snapshots, manifests and private analysis artifacts remain outside Git.
 
 Run the offline syntax and boundary checks:
 
@@ -49,6 +49,14 @@ Rscript scripts/analyze.R
 ```
 
 `--pilot-only` times a small bootstrap run without creating browser results. `--all-views` requires cached metric snapshots and completed document acquisition for every supported season from 2009–10 through 2025–26. It builds the available one-, three- and five-season windows. An unavailable annual salary remains an explicit exclusion even when its document was successfully acquired.
+
+After completing the historical cache, run the prespecified sensitivity and held-out-season checks:
+
+```sh
+Rscript scripts/sensitivity.R --all-views
+```
+
+This writes private diagnostic evidence for broader and stricter playing-time rules, multi-season rate weighting and local salary support. Separate held-out-season checks retain annual outcomes. Inspect those results alongside the residual plots and salary-group tables from the analysis; a successful script run alone does not establish that the model is suitable.
 
 ## Analysis protocol
 
