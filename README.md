@@ -68,6 +68,8 @@ Single-season points pair nominal salary with that season's contribution. Multi-
 
 The above/below-reference value is the vertical distance from the displayed curve. The extra-$1m result compares two points on that same curve. Both spending positions need local observations and bracketing support; sparse ranges stay unavailable. Player/team filters never refit this reference.
 
+**Value for pay percentile** ranks that gap within the full eligible matched league cohort for the selected metric and window. It counts gaps strictly below the player's plus half of exact ties (including the player), divides by the cohort size and multiplies by 100. Ties use residuals at their actual JSON export precision; only the displayed percentile is rounded to one decimal. Team/search filters preserve the score and denominator. It is not overall talent, causal value, return per dollar or statistical surprise, and a zero gap need not rank at 50.
+
 Whole-player bootstrap refits provide approximate pointwise resampling bands, conditional on supplied scores, the matched sample and selected model family. They do not measure errors in individual player scores, establish causal spending effects or include full model-selection uncertainty. Eligibility, weighting, support, influence and separate out-of-season diagnostics assess different limits; they are not forecasts.
 
 ## Data and interpretation

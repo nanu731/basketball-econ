@@ -223,6 +223,25 @@ export const money = (v: number): string => {
 export const salaryCoverage = (v: View): string => { const c = v.coverage; return `Known active compensation included: ${money(c.includedKnownSalaryUsd)} of ${money(c.allKnownActiveSalaryUsd)} (${c.allKnownActiveSalaryUsd > 0 ? `${decimal(c.includedKnownSalaryUsd / c.allKnownActiveSalaryUsd * 100)}%` : 'coverage undefined: no known-dollar denominator'}). ${c.unknownSalaryPlayerSeasons} player-seasons have unknown salary; ${c.eligiblePlayerSeasons} matched active player-seasons retained from ${c.sourcePlayerSeasons} active source player-seasons. ${v.window > 1 ? 'Both dollar totals are annual ending-season cap-equivalent amounts across the full window. ' : ''}This is known matched-sample coverage, not whole payroll.`; };
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
 
+export function filterPlayers(view: View, team: string, query: string): Player[] {
+  const search = query.trim().toLocaleLowerCase();
+  return view.players.filter(p => (!team || p.teams.includes(team)) && p.name.toLocaleLowerCase().includes(search));
+}
+/** Read existing scores; presentation and filters never calculate a new rank. */
+export function playerComparisonCopy(p: Player, metric: Metric, view: View) {
+  const unit = metric === 'war' ? 'WAR' : 'LEBRON points / 100 possessions';
+  return {
+    name: p.name,
+    salary: `${money(p.salaryUsd)}${view.window > 1 ? ' average / year' : ' for the season'}`,
+    contribution: `${decimal(p[metric])} ${unit}${metric === 'war' && view.window > 1 ? ' / observed season' : ''}`,
+    gap: p.residual[metric] === 0 ? `0.00 ${unit} · on the reference` : `${decimal(Math.abs(p.residual[metric]))} ${unit} ${p.residual[metric] > 0 ? 'above' : 'below'} reference`,
+    percentile: percentile(p.valuePercentile[metric]),
+    cohort: `Among ${view.players.length} eligible matched players · ${metric.toUpperCase()} · ${viewLabel(view)}`,
+    observed: view.window > 1 ? `Based on ${p.observedSeasons.length} of ${view.window} seasons` : '',
+    details: `${p.teams.map(t => teamName(t, view.endSeason)).join(', ')}. Observed seasons: ${p.observedSeasons.map(seasonLabel).join(', ')}. ${decimal(p.minutes)} minutes; ${decimal(p.possessions)} possessions. Salary: ${decimal(p.salaryCapShare * 100)}% of ${view.window > 1 ? "average annual cap; dollars use the ending season's cap" : 'the season cap'}. ${p.flags.map(readableReason).join('. ')}`,
+  };
+}
+
 const TEAM_NAMES: Record<string, string> = {
   ATL: 'Atlanta Hawks', BOS: 'Boston Celtics', BKN: 'Brooklyn Nets', BRK: 'Brooklyn Nets',
   CHA: 'Charlotte Hornets', CHO: 'Charlotte Hornets', CHI: 'Chicago Bulls', CLE: 'Cleveland Cavaliers',
@@ -314,7 +333,9 @@ export function mountMoneyball(root: HTMLElement): void {
     bundle = null; active = null; setControls(false);
     chart.replaceChildren(); contrastChart.replaceChildren(); table.replaceChildren(); tableDirty = true;
     pick.replaceChildren(option('', 'Choose a player')); txt('search-result', 'Player choices will return after this view loads.');
-    txt('selection', 'Player details unavailable.'); txt('team-summary', 'Team totals unavailable.'); get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Extra $1m comparison unavailable.'); txt('count', 'No interactive player records');
+    txt('selection-name', 'Player comparison'); get('selection').hidden = false; get('comparison').hidden = true;
+    for (const key of ['selected-salary', 'selected-contribution', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
+    txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Extra $1m comparison unavailable.'); txt('count', 'No interactive player records');
     txt('coverage', ''); txt('model', ''); txt('view-evidence', 'No interactive view evidence loaded.');
     txt('y-label', 'Contribution · awaiting selected view'); txt('x-label', 'Compensation · awaiting selected view');
     status.textContent = message; get('empty').hidden = false; get('live-table').hidden = true; get('snapshot').hidden = false;
@@ -357,7 +378,7 @@ export function mountMoneyball(root: HTMLElement): void {
       render();
     } catch { failure(`${seasonLabel(desired.endSeason)} · ${desired.window}-season window is unavailable or failed validation. Change season/window, reset, or retry. The default build snapshot below is separately labeled.`); }
   }
-  function rows(): Player[] { return active?.players.filter(p => (!team.value || p.teams.includes(team.value)) && p.name.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())) ?? []; }
+  function rows(): Player[] { return active ? filterPlayers(active, team.value, search.value) : []; }
   function render() {
     if (!active) return;
     const shown = rows(), m = metric.value as Metric;
@@ -369,8 +390,9 @@ export function mountMoneyball(root: HTMLElement): void {
     metric.options[0].textContent = active.window > 1 ? 'WAR · avg estimated wins' : 'WAR · estimated wins';
     txt('y-label', m === 'war' ? active.window > 1 ? 'estimated wins / observed season' : 'estimated wins · season total' : 'impact points / 100 possessions'); txt('x-label', units.value === 'share' ? 'Compensation · % of season cap →' : active.window === 1 ? 'Annual compensation · US dollars →' : `Average annual compensation · ${seasonLabel(active.endSeason)} cap-equivalent dollars →`);
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
-    if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${bundle.publication.note} ${active.models[m].name}. ${active.models[m].intervalLabel} ${active.models[m].method} ${active.models[m].validation} Salary: ${bundle.definitions.salary} Window representation: salary cap share and WAR are averages over exactly the observed matched active seasons; LEBRON is weighted by provider possession counts. Multi-season dollars are average annual compensation using the ending season cap, and team averages divide attributable player-season totals by the full window length. Eligibility: ${bundle.definitions.eligibility} Coverage note: ${active.coverage.note} Uncertainty: ${bundle.definitions.uncertainty} Limitations: ${bundle.definitions.limitations.join('; ')} Sources: ${bundle.sources.map(s => `${s.label}, ${s.url}, ${s.version}, retrieved ${s.retrieved}`).join('; ')}`);
+    if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${active.models[m].name}. ${active.models[m].method} ${active.models[m].validation} ${active.models[m].intervalLabel} ${bundle.publication.note} Sources: ${bundle.sources.map(s => `${s.label}, ${s.url}, ${s.version}, retrieved ${s.retrieved}`).join('; ')}`);
     const t = active.teams.find(t => t.team === team.value);
+    get('team-summary').hidden = !team.value;
     get('team-audit-panel').hidden = !team.value || !t;
     txt('team-summary', !team.value ? 'Choose a team to compare its chart players with the matched records we can assign to the club.' : !t || t.status === 'unavailable' ? `${teamName(team.value, active.endSeason)}: ${shown.length} players in the chart; team salary and WAR totals are unavailable.` : `${teamName(t.team, active.endSeason)}: ${shown.length} players in the chart; totals cover ${t.attributablePlayerSeasons} matched player-seasons we can assign to this club. ${money(t.salaryUsd!)} and ${decimal(t.war!)} WAR ${active.window === 1 ? 'in the selected season' : `per year across the full ${active.window}-season window`}. Team totals stay fixed under player search.`);
     txt('team-audit', t ? `Matched team sample: ${t.attributablePlayerSeasons} assigned of ${t.eligiblePlayerSeasons} matched player-seasons. Broader active-source team rows have ${t.excludedTradeCount} trade/unknown-allocation flags and ${t.excludedMissingCount} missing-data flags. Those audit counts may overlap and include ineligible source rows; do not add them as separate groups or subtract them from the chart-player count. ${t.note}` : 'No team audit is loaded.');
@@ -379,9 +401,14 @@ export function mountMoneyball(root: HTMLElement): void {
     if (records.open) renderTable();
     else if (table.childElementCount) table.replaceChildren();
     txt('table-cost', units.value === 'share' ? 'Compensation (% cap)' : active.window === 1 ? 'Compensation (USD)' : 'Avg compensation (end-cap USD)');
-    txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`);
+    txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`); txt('table-percentile', `Value for pay percentile (${m.toUpperCase()})`);
     const p = active.players.find(p => p.id === selected);
-    txt('selection', p ? `${p.name} · ${p.teams.map(t => teamName(t, active!.endSeason)).join(', ')}. ${money(p.salaryUsd)}${active.window > 1 ? ' average annual end-season cap-equivalent compensation' : ' annual compensation'} (${decimal(p.salaryCapShare * 100)}% cap). ${metricLabel(m, active)}: ${decimal(p[m])}. League reference: ${decimal(p.fitted[m])}. ${decimal(Math.abs(p.residual[m]))} ${p.residual[m] >= 0 ? 'above' : 'below'} the visible reference. Observed seasons: ${p.observedSeasons.map(seasonLabel).join(', ')} (${p.observedSeasons.length}/${active.window}). ${decimal(p.minutes)} minutes; ${decimal(p.possessions)} possessions. ${p.flags.map(readableReason).join(' ')}` : 'Search for a player or tap a dot. Use the player selector for an exact comparison.');
+    txt('selection-name', p?.name ?? 'Player comparison'); get('selection').hidden = !!p; get('comparison').hidden = !p;
+    if (p) {
+      const copy = playerComparisonCopy(p, m, active);
+      for (const field of ['salary', 'contribution', 'gap', 'percentile', 'cohort', 'observed', 'details'] as const) txt(`selected-${field}`, copy[field]);
+      get('selected-observed').hidden = active.window === 1;
+    } else txt('selection', 'Search for a player or tap a dot for a comparison.');
     draw(chart, false); if (extra.open) draw(contrastChart, true); contrastReadout();
   }
   function renderTable() {
@@ -390,10 +417,10 @@ export function mountMoneyball(root: HTMLElement): void {
     table.replaceChildren(...shown.map(p => {
       const tr = document.createElement('tr'), name = document.createElement('th'); name.scope = 'row';
       const b = document.createElement('button'); b.type = 'button'; b.textContent = p.name; b.dataset.player = p.id; b.setAttribute('aria-pressed', String(p.id === selected)); name.append(b); tr.append(name);
-      for (const value of [p.teams.join(', '), `${p.observedSeasons.length}/${active!.window}`, units.value === 'share' ? `${decimal(p.salaryCapShare * 100)}%` : money(p.salaryUsd), decimal(p.lebron), decimal(p.war), decimal(p.residual[m])]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
+      for (const value of [p.teams.join(', '), `${p.observedSeasons.length}/${active!.window}`, units.value === 'share' ? `${decimal(p.salaryCapShare * 100)}%` : money(p.salaryUsd), decimal(p.lebron), decimal(p.war), decimal(p.residual[m]), percentile(p.valuePercentile[m])]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
       return tr;
     }));
-    if (!shown.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 7; td.textContent = 'No players match these filters. Clear the search or reset the view.'; tr.append(td); table.append(tr); }
+    if (!shown.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.textContent = 'No players match these filters. Clear the search or reset the view.'; tr.append(td); table.append(tr); }
     tableDirty = false;
   }
   function draw(target: SVGSVGElement & HTMLElement, extra: boolean) {

@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -285,7 +285,7 @@ test('each metric and window validates its own full matched cohort ranks', () =>
 test('team and search selection retain the full-cohort scores and denominator', () => {
   const v = validateBundle(rankedFixture()).views[0];
   const original = structuredClone(v.players);
-  const shown = v.players.filter(p => p.teams.includes('TEST') && p.name.includes('0'));
+  const shown = filterPlayers(v, 'TEST', '  SYNTHETIC 0  ');
   assert.equal(resolvePlayerSelection(shown, '', 'SYNTHETIC 0'), shown[0].id);
   assert.equal(shown[0].valuePercentile.lebron, 12.5);
   assert.equal(v.players.length, 4); assert.deepEqual(v.players, original);
@@ -306,4 +306,20 @@ test('display rounding is not accepted as the stored percentile', () => {
 test('percentile formatting rounds only the display to one decimal', () => {
   assert.equal(percentile(100 / 6), '16.7'); assert.equal(percentile(50), '50.0'); assert.equal(percentile(87.5), '87.5');
   for (const invalid of [null, undefined, NaN, Infinity, -1, 101]) assert.throws(() => percentile(invalid));
+});
+
+test('selected comparison preserves native-unit gaps and distinguishes player and observed-season denominators', () => {
+  const view = validateBundle(rankedFixture([-3, 0, 0, 2])).views[0];
+  const player = filterPlayers(view, 'TEST', 'SYNTHETIC 0')[0];
+  const annual = playerComparisonCopy(player, 'war', view);
+  assert.equal(annual.percentile, '87.5'); assert.match(annual.gap, /2.00 WAR above reference/);
+  assert.match(annual.contribution, /1.50 WAR/); assert.match(annual.salary, /for the season/);
+  assert.match(annual.cohort, /Among 4 eligible matched players/); assert.equal(annual.observed, '');
+  const multi = structuredClone(view); multi.window = 3; multi.seasons = [2023, 2024, 2025];
+  player.observedSeasons = [2023, 2025];
+  const rate = playerComparisonCopy(player, 'lebron', multi);
+  assert.equal(rate.percentile, '12.5'); assert.match(rate.gap, /3.00 LEBRON points \/ 100 possessions below reference/);
+  assert.match(rate.cohort, /Among 4 eligible matched players/); assert.equal(rate.observed, 'Based on 2 of 3 seasons');
+  assert.match(rate.salary, /average \/ year/); assert.match(rate.details, /2022–23, 2024–25/);
+  assert.match(rate.details, /minutes; .* possessions/);
 });
