@@ -114,7 +114,14 @@ async function mountedScenario() {
     check(document.documentElement.scrollWidth <= innerWidth + 1 && q('extra').querySelector('.mb-scenarios').getBoundingClientRect().width <= q('extra').getBoundingClientRect().width, 'Worked comparison overflows the page');
     const start = q('contrast-start').textContent; q('spending').value = q('spending').value === '0' ? q('spending').max : '0'; q('spending').dispatchEvent(new Event('input', { bubbles: true }));
     check(q('contrast-start').textContent && q('contrast-start').textContent !== start, 'Starting salary did not update with slider'); pairedComparison(one, 'war');
-    choose(player); connector();
+    const gapSize = (chosen, metric, view) => {
+      const abs = view.players.map(p => Math.abs(p.residual[metric])).sort((a, b) => a - b), mid = Math.floor(abs.length / 2);
+      const scale = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2, ratio = chosen.residual[metric] / scale;
+      const magnitude = Math.abs(ratio), formatted = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? String(Number(magnitude.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(magnitude);
+      check(q('selected-magnitude').textContent.startsWith(`${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${formatted} × median absolute league gap`), 'Selected magnitude differs from the full league cohort');
+      check(q('selected-scale').textContent.includes(String(Number(scale.toPrecision(6)))) && q('selected-scale').textContent.includes(`${view.players.length} matched players`), 'Native scale/full cohort context missing');
+    };
+    choose(player); connector(); gapSize(player, 'war', one);
     const pinnedRank = q('selected-percentile').textContent; hover(dots().find(d => d.dataset.player === peer.id));
     check(hoveredName() === peer.name && q('chart').querySelector('.mb-selected')?.dataset.player === player.id && q('search').value === player.name && q('selected-percentile').textContent === pinnedRank, 'Peer hover replaced the pinned comparison');
     q('chart').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' })); check(!hoveredName(), 'Chart exit retained hover');
@@ -125,6 +132,7 @@ async function mountedScenario() {
     dots().find(el => el.dataset.player === peer.id).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     check(q('chart').querySelector('.mb-selected')?.dataset.player === peer.id && q('search').value === peer.name && dots().length === one.players.length, 'Visible peer cannot be selected'); connector();
     q('search').value = 'zzzz'; q('search').dispatchEvent(new Event('input', { bubbles: true }));
+    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Draft input retained gap size');
     check(!q('chart').querySelector('.mb-selected') && dots().length === 0 && !q('rows').querySelector('[data-player]'), 'Typing did not clear selection and filter');
     choose(player); contextPanel.querySelector('summary').click(); check(contextPanel.open && q('team').getBoundingClientRect().height >= 44, 'Native panel did not expose usable controls'); change('team', 'NYK');
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
@@ -133,13 +141,14 @@ async function mountedScenario() {
     contextPanel.querySelector('summary').click(); check(!contextPanel.open && q('period').textContent.includes('New York Knicks'), 'Collapsed team context stayed stale');
     check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
     check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
-    check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed');
+    check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed'); gapSize(team[0], 'war', one);
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
+    gapSize(player, 'lebron', one);
     check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); pairedComparison(one, 'lebron'); check(q('contrast-unitNote').textContent.includes('not points actually scored'), 'Rate estimate units are unexplained');
     change('window', '3');
-    check(fields.every(f => q(`contrast-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '', 'Loading retained stale guided/result fields');
+    check(fields.every(f => q(`contrast-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
-    const multiPlayer = multi.players.find(p => p.id === player.id);
+    const multiPlayer = multi.players.find(p => p.id === player.id); gapSize(multiPlayer, 'lebron', multi);
     check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + ' / 100', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
     pairedComparison(multi, 'lebron'); check(q('contrast-context').textContent.includes('cap-equivalent') && q('contrast-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
@@ -148,7 +157,7 @@ async function mountedScenario() {
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(!hoveredName(), 'Failed view retained hover');
     check(fields.every(f => q(`contrast-${f}`).textContent === ''), 'A contrast field stayed stale');
-    check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '', 'Failed view retained new results/actions');
+    check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Failed view retained new results/actions');
     check(!q('reset').disabled && q('units').disabled, 'Reset lost recovery availability outside the controls fieldset');
     check(q('spending').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
@@ -157,6 +166,13 @@ async function mountedScenario() {
     const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); pairedComparison((await json(fiveView.url)).views[0], 'lebron');
     q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
     check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls');
+    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Reset retained selected gap size');
+    check(q('snapshot').querySelector('thead').textContent.includes('gap size') && q('rows').closest('table').querySelector('thead').textContent.includes('Gap size'), 'No-JS or live table lacks gap-size equivalent');
+    const priorEntry = index.views.find(v => v.endSeason === initial.endSeason - 1 && v.window === 1), prior = (await json(priorEntry.url)).views[0];
+    change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, 'Prior year did not load');
+    choose(prior.players[0]); gapSize(prior.players[0], 'war', prior);
+    q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
+    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Year reset retained gap size');
     document.body.dataset.moneyballTest = 'passed';
   } catch (error) {
     document.body.dataset.moneyballTest = 'failed'; document.body.dataset.moneyballError = encodeURIComponent(error.stack ?? String(error));
@@ -184,7 +200,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
         body = await readFile(file); type = mime[extname(file)] ?? 'application/octet-stream';
         if (pathname === page) body = html.replace('</body>', '<script type="module" src="/__moneyball-test.mjs"></script></body>');
         if (armed && /^\/data\/moneyball\/v1\/views\/\d{4}-(1|3|5)\.json$/.test(pathname)) {
-          const invalid = JSON.parse(body); invalid.views[0].players[0].valuePercentile.war = 0;
+          const invalid = JSON.parse(body); invalid.views[0].gapSize.war.scale *= 2;
           body = JSON.stringify(invalid); armed = false; corruptions++;
         }
       }

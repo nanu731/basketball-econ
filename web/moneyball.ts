@@ -3,9 +3,10 @@ export type Metric = 'lebron' | 'war';
 export interface Contrast { supported: boolean; estimate: number | null; low: number | null; high: number | null; nStart: number; nEnd: number; reason: string | null }
 export interface Knot { x: number; y: number; low: number | null; high: number | null; extraMillion: Contrast }
 export interface Model { name: string; method: string; validation: string; intervalLabel: string; curve: Knot[] }
-export interface Player { id: string; name: string; teams: string[]; observedSeasons: number[]; minutes: number; possessions: number; salaryCapShare: number; salaryUsd: number; lebron: number; war: number; fitted: Record<Metric, number>; residual: Record<Metric, number>; valuePercentile: Record<Metric, number>; label: boolean; flags: string[] }
+export interface GapScale { method: 'median-absolute-visible-gap-v1'; cohortN: number; scale: number | null; status: 'available' | 'unavailable'; reason: 'zero-scale' | 'invalid-scale' | 'unrepresentable-ratio' | null }
+export interface Player { id: string; name: string; teams: string[]; observedSeasons: number[]; minutes: number; possessions: number; salaryCapShare: number; salaryUsd: number; lebron: number; war: number; fitted: Record<Metric, number>; residual: Record<Metric, number>; valuePercentile: Record<Metric, number>; gapMultiple: Record<Metric, number | null>; label: boolean; flags: string[] }
 export interface Team { team: string; salaryUsd: number | null; war: number | null; status: 'attributable-sample' | 'unavailable'; attributablePlayerSeasons: number; eligiblePlayerSeasons: number; excludedTradeCount: number; excludedMissingCount: number; note: string }
-export interface View { id: string; endSeason: number; window: 1 | 3 | 5; seasons: number[]; referenceCapUsd: number; representation: string; coverage: { eligible: number; matched: number; includedKnownSalaryUsd: number; allKnownActiveSalaryUsd: number; unknownSalaryPlayerSeasons: number; sourcePlayerSeasons: number; eligiblePlayerSeasons: number; excluded: { reason: string; count: number }[]; note: string }; players: Player[]; models: Record<Metric, Model>; teams: Team[] }
+export interface View { id: string; endSeason: number; window: 1 | 3 | 5; seasons: number[]; referenceCapUsd: number; representation: string; coverage: { eligible: number; matched: number; includedKnownSalaryUsd: number; allKnownActiveSalaryUsd: number; unknownSalaryPlayerSeasons: number; sourcePlayerSeasons: number; eligiblePlayerSeasons: number; excluded: { reason: string; count: number }[]; note: string }; players: Player[]; gapSize: Record<Metric, GapScale>; models: Record<Metric, Model>; teams: Team[] }
 export interface Bundle { schemaVersion: 'moneyball.v1'; dataVersion: string; defaultView: string; publication: { status: 'private-preview' | 'cleared'; note: string }; sources: { label: string; url: string; version: string; retrieved: string }[]; definitions: { salary: string; eligibility: string; uncertainty: string; limitations: string[] }; views: View[] }
 export interface IndexView { id: string; endSeason: number; window: 1 | 3 | 5; url: string }
 export interface ViewIndex { schemaVersion: 'moneyball.index.v1'; dataVersion: string; defaultView: string; views: IndexView[] }
@@ -39,6 +40,22 @@ export function valuePercentiles(residuals: number[]): number[] {
   }
   return values.map(value => ranks.get(value)!);
 }
+/** Independent full-cohort check of R's descriptive score, not a distributional model. */
+export function gapSizes(residuals: number[]): { metadata: GapScale; multiples: (number | null)[] } {
+  const values = arr(residuals).map(num); if (!values.length) fail('empty gap-size cohort');
+  // R's canonical jsonlite encoding uses 15 significant digits; guard its overflow boundary too.
+  if (values.some(r => !Number.isFinite(Number(r.toPrecision(15))))) fail('gap-size cohort cannot be encoded as finite JSON');
+  const ordered = values.map(Math.abs).sort((a, b) => a < b ? -1 : a > b ? 1 : 0), mid = Math.floor(ordered.length / 2);
+  const a = ordered[Math.max(0, mid - 1)], b = ordered[mid];
+  const scale = ordered.length % 2 ? b : a <= Number.MAX_VALUE - b ? (a + b) / 2 : a / 2 + b / 2;
+  let reason: GapScale['reason'] = !Number.isFinite(scale) ? 'invalid-scale' : scale <= 0 ? 'zero-scale' : null;
+  const ratios = reason ? [] : values.map(r => r / scale);
+  if (!reason && ratios.some((ratio, i) => !Number.isFinite(ratio) || !Number.isFinite(Number(ratio.toPrecision(15))) || (values[i] !== 0 && ratio === 0))) reason = 'unrepresentable-ratio';
+  return { metadata: { method: 'median-absolute-visible-gap-v1', cohortN: values.length, scale: reason ? null : scale, status: reason ? 'unavailable' : 'available', reason }, multiples: values.map((_, i) => reason ? null : ratios[i]) };
+}
+const sameStoredNumber = (actual: unknown, expected: number): boolean =>
+  typeof actual === 'number' && Number.isFinite(actual) && (expected === 0 ? actual === 0 : Math.abs(actual / expected - 1) <= 1e-12);
+
 export function interpolate(curve: Knot[], x: number): number {
   if (!Number.isFinite(x) || x < curve[0].x || x > curve[curve.length - 1].x) return NaN;
   const j = curve.findIndex(k => k.x >= x);
@@ -135,10 +152,17 @@ export function validateBundle(input: unknown, asOf: Date = new Date()): Bundle 
       const seasons = arr(p.observedSeasons, 5); if (!seasons.length || seasons.some(s => !v.seasons.includes(s))) fail('observed seasons'); unique(seasons);
       nonneg(p.minutes); nonneg(p.possessions); nonneg(p.salaryCapShare); nonneg(p.salaryUsd);
       if (!close(p.salaryUsd, p.salaryCapShare * v.referenceCapUsd)) fail('money units');
-      obj(p.fitted); obj(p.residual); obj(p.valuePercentile); if (typeof p.label !== 'boolean') fail('label flag'); arr(p.flags, 30).forEach(f => str(f));
+      obj(p.fitted); obj(p.residual); obj(p.valuePercentile); obj(p.gapMultiple); if (typeof p.label !== 'boolean') fail('label flag'); arr(p.flags, 30).forEach(f => str(f));
       metrics.forEach(m => { num(p[m]); num(p.fitted[m]); num(p.residual[m]); if (!close(p.fitted[m], interpolate(v.models[m].curve, p.salaryCapShare)) || !close(p.residual[m], p[m] - p.fitted[m])) fail('visible reference or residual mismatch'); });
     });
     metrics.forEach(m => {
+      const magnitude = gapSizes(players.map(p => p.residual[m])), scale = obj(obj(v.gapSize)[m]), expectedScale = magnitude.metadata;
+      if (scale.method !== expectedScale.method || scale.cohortN !== expectedScale.cohortN || scale.status !== expectedScale.status || scale.reason !== expectedScale.reason ||
+          (expectedScale.scale === null ? scale.scale !== null : !sameStoredNumber(scale.scale, expectedScale.scale))) fail('gap-size scale differs from full matched cohort');
+      players.forEach((p, i) => {
+        const expected = magnitude.multiples[i], actual = p.gapMultiple[m];
+        if (expected === null ? actual !== null : !sameStoredNumber(actual, expected)) fail('gap-size multiple differs from full matched cohort');
+      });
       const expected = valuePercentiles(players.map(p => p.residual[m]));
       players.forEach((p, i) => {
         const score = num(p.valuePercentile[m]);
@@ -225,6 +249,18 @@ export const salaryCoverage = (v: View): string => { const c = v.coverage; retur
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
 export const warOptionLabel = (window: View['window']): string => window === 1 ? 'Season contribution · WAR' : 'Average season contribution · WAR';
 
+export function gapMultiple(value: number | null): string {
+  if (value === null) return 'Unavailable';
+  const magnitude = Math.abs(num(value));
+  const display = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? Number(magnitude.toPrecision(3)).toString() : decimal(magnitude);
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${display} × median absolute league gap`;
+}
+export function gapScaleCopy(metric: Metric, view: View): string {
+  const scale = view.gapSize[metric];
+  const unit = metric === 'war' ? view.window > 1 ? 'WAR/observed season' : 'WAR' : 'impact points/100 possessions';
+  return scale.status === 'available' ? `Median absolute league gap: ${Number(scale.scale!.toPrecision(6))} ${unit} · ${scale.cohortN} matched players.` : `Gap size unavailable: ${scale.reason === 'zero-scale' ? 'the median absolute league gap is zero' : scale.reason === 'unrepresentable-ratio' ? 'the ratio cannot be represented safely' : 'the scale is invalid'}. ${scale.cohortN} matched players.`;
+}
+
 export function normalizePlayerSearch(value: string): string {
   return value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('en-US')
     .replace(/[\p{P}\p{S}]+/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -276,6 +312,7 @@ export function playerComparisonCopy(p: Player, metric: Metric, view: View) {
     reference: `${decimal(reference)} ${contributionUnit}`,
     gap: `${gap > 0 ? '+' : gap < 0 ? '−' : ''}${decimal(Math.abs(gap))} ${contributionUnit}`,
     percentile: `${percentile(p.valuePercentile[metric])} / 100`,
+    magnitude: gapMultiple(p.gapMultiple[metric]), scale: gapScaleCopy(metric, view),
     cohort: `Among ${view.players.length} eligible matched players`,
     observed: view.window > 1 ? `Based on ${p.observedSeasons.length} of ${view.window} seasons` : '',
     details: `${metric.toUpperCase()} · ${viewLabel(view)}. ${p.teams.map(t => teamName(t, view.endSeason)).join(', ')}. Observed seasons: ${p.observedSeasons.map(seasonLabel).join(', ')}. ${decimal(p.minutes)} minutes; ${decimal(p.possessions)} possessions. Salary: ${decimal(p.salaryCapShare * 100)}% of ${view.window > 1 ? "average annual cap; dollars use the ending season's cap" : 'the season cap'}. ${p.flags.map(readableReason).join('. ')}`,
@@ -483,7 +520,7 @@ export function mountMoneyball(root: HTMLElement): void {
     chart.replaceChildren(); table.replaceChildren(); tableDirty = true;
     txt('search-result', 'Player suggestions will return after this view loads.');
     txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
-    for (const key of ['selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
+    for (const key of ['selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-magnitude', 'selected-scale', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Salary comparison unavailable.');
     for (const key of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision']) txt(`contrast-${key}`, '');
     slider.max = '0'; slider.value = '0'; slider.setAttribute('aria-valuetext', 'Salary comparison unavailable'); txt('count', 'No interactive player records');
@@ -578,9 +615,9 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('selection-name', p?.name ?? 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {
       const copy = playerComparisonCopy(p, m, active);
-      for (const field of ['salary', 'contribution', 'reference', 'gap', 'percentile', 'cohort', 'observed', 'details'] as const) txt(`selected-${field}`, copy[field]);
+      for (const field of ['salary', 'contribution', 'reference', 'gap', 'percentile', 'magnitude', 'scale', 'cohort', 'observed', 'details'] as const) txt(`selected-${field}`, copy[field]);
       get('selected-observed').hidden = active.window === 1;
-    } else txt('selection', 'Search for a player or select a dot.');
+    } else { txt('selection', 'Search for a player or select a dot.'); txt('selected-magnitude', ''); txt('selected-scale', ''); }
     draw(); contrastReadout();
   }
   function renderExamples() {
@@ -596,10 +633,10 @@ export function mountMoneyball(root: HTMLElement): void {
     table.replaceChildren(...shown.map(p => {
       const tr = document.createElement('tr'), name = document.createElement('th'); name.scope = 'row';
       const b = document.createElement('button'); b.type = 'button'; b.textContent = p.name; b.dataset.player = p.id; b.setAttribute('aria-pressed', String(p.id === selected)); name.append(b); tr.append(name);
-      for (const value of [p.teams.join(', '), `${p.observedSeasons.length}/${active!.window}`, units.value === 'share' ? `${decimal(p.salaryCapShare * 100)}%` : money(p.salaryUsd), decimal(p.lebron), decimal(p.war), decimal(p.residual[m]), percentile(p.valuePercentile[m])]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
+      for (const value of [p.teams.join(', '), `${p.observedSeasons.length}/${active!.window}`, units.value === 'share' ? `${decimal(p.salaryCapShare * 100)}%` : money(p.salaryUsd), decimal(p.lebron), decimal(p.war), decimal(p.residual[m]), percentile(p.valuePercentile[m]), gapMultiple(p.gapMultiple[m])]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
       return tr;
     }));
-    if (!shown.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.textContent = 'No players match these filters. Clear the search or reset the view.'; tr.append(td); table.append(tr); }
+    if (!shown.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 9; td.textContent = 'No players match these filters. Clear the search or reset the view.'; tr.append(td); table.append(tr); }
     tableDirty = false;
   }
   function clearHover() { chart.querySelector('.mb-hover')?.remove(); }

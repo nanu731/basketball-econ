@@ -1,16 +1,29 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, salaryComparison, examplePlayers } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, salaryComparison, examplePlayers, gapSizes, gapMultiple, gapScaleCopy } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
 const validateViewBundle = (input, expected, version, asOf = AS_OF) => validateViewBundleAt(input, expected, version, asOf);
 const createViewLoader = (index, read, asOf = AS_OF) => createViewLoaderAt(index, read, asOf);
 const contrast = (supported, estimate = null) => ({ supported, estimate, low: supported ? estimate - 0.1 : null, high: supported ? estimate + 0.1 : null, nStart: 3, nEnd: 3, reason: supported ? null : 'Synthetic unsupported endpoint' });
+function withGapScores(bundle) {
+  for (const view of bundle.views) {
+    view.gapSize = {};
+    for (const metric of ['lebron', 'war']) {
+      const values = view.players.map(p => p.residual[metric]);
+      const sorted = values.map(Math.abs).sort((a, b) => a - b), mid = Math.floor(values.length / 2);
+      const scale = values.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      view.gapSize[metric] = { method: 'median-absolute-visible-gap-v1', cohortN: values.length, scale: scale || null, status: scale ? 'available' : 'unavailable', reason: scale ? null : 'zero-scale' };
+      view.players.forEach(p => { p.gapMultiple ??= {}; p.gapMultiple[metric] = scale ? p.residual[metric] / scale : null; });
+    }
+  }
+  return bundle;
+}
 function fixture() {
   const model = { name: 'Synthetic linear test', method: 'Test fixture only', validation: 'Test fixture only', intervalLabel: 'Synthetic conditional interval', curve: [{ x: 0, y: -1, low: -2, high: 0, extraMillion: contrast(true, .1) }, { x: .1, y: 0, low: -1, high: 1, extraMillion: contrast(true, .1) }, { x: .2, y: 1, low: 0, high: 2, extraMillion: contrast(false) }] };
-  return { schemaVersion: 'moneyball.v1', dataVersion: 'synthetic-test-only', defaultView: '2025-1', publication: { status: 'private-preview', note: 'Synthetic test fixture only' }, sources: [{ label: 'Synthetic source', url: 'https://example.com/test', version: 'fixture', retrieved: '2026-10-23' }], definitions: { salary: 'Synthetic salary definition', eligibility: 'Synthetic eligibility', uncertainty: 'Synthetic uncertainty', limitations: ['Test fixture only'] }, views: [{ id: '2025-1', endSeason: 2025, window: 1, seasons: [2025], referenceCapUsd: 100000000, representation: 'player-season', coverage: { eligible: 1, matched: 1, includedKnownSalaryUsd: 5000000, allKnownActiveSalaryUsd: 6000000, unknownSalaryPlayerSeasons: 1, sourcePlayerSeasons: 2, eligiblePlayerSeasons: 1, excluded: [], note: 'Test only' }, players: [{ id: '999999999', name: 'SYNTHETIC TEST PLAYER', teams: ['TEST'], observedSeasons: [2025], minutes: 1, possessions: 2, salaryCapShare: .05, salaryUsd: 5000000, lebron: -1, war: -2, fitted: { lebron: -.5, war: -.5 }, residual: { lebron: -.5, war: -1.5 }, valuePercentile: { lebron: 50, war: 50 }, label: false, flags: ['Synthetic fixture only'] }], models: { lebron: structuredClone(model), war: structuredClone(model) }, teams: [{ team: 'TEST', salaryUsd: null, war: null, status: 'unavailable', attributablePlayerSeasons: 0, eligiblePlayerSeasons: 1, excludedTradeCount: 1, excludedMissingCount: 0, note: 'Synthetic unavailable allocation' }] }] };
+  return withGapScores({ schemaVersion: 'moneyball.v1', dataVersion: 'synthetic-test-only', defaultView: '2025-1', publication: { status: 'private-preview', note: 'Synthetic test fixture only' }, sources: [{ label: 'Synthetic source', url: 'https://example.com/test', version: 'fixture', retrieved: '2026-10-23' }], definitions: { salary: 'Synthetic salary definition', eligibility: 'Synthetic eligibility', uncertainty: 'Synthetic uncertainty', limitations: ['Test fixture only'] }, views: [{ id: '2025-1', endSeason: 2025, window: 1, seasons: [2025], referenceCapUsd: 100000000, representation: 'player-season', coverage: { eligible: 1, matched: 1, includedKnownSalaryUsd: 5000000, allKnownActiveSalaryUsd: 6000000, unknownSalaryPlayerSeasons: 1, sourcePlayerSeasons: 2, eligiblePlayerSeasons: 1, excluded: [], note: 'Test only' }, players: [{ id: '999999999', name: 'SYNTHETIC TEST PLAYER', teams: ['TEST'], observedSeasons: [2025], minutes: 1, possessions: 2, salaryCapShare: .05, salaryUsd: 5000000, lebron: -1, war: -2, fitted: { lebron: -.5, war: -.5 }, residual: { lebron: -.5, war: -1.5 }, valuePercentile: { lebron: 50, war: 50 }, label: false, flags: ['Synthetic fixture only'] }], models: { lebron: structuredClone(model), war: structuredClone(model) }, teams: [{ team: 'TEST', salaryUsd: null, war: null, status: 'unavailable', attributablePlayerSeasons: 0, eligiblePlayerSeasons: 1, excludedTradeCount: 1, excludedMissingCount: 0, note: 'Synthetic unavailable allocation' }] }] });
 }
 test('accepts negative outcomes and unknown team attribution as null', () => { assert.equal(validateBundle(fixture()).views[0].players[0].war, -2); });
 test('interpolates the visible curve and never extrapolates', () => { const c = fixture().views[0].models.war.curve; assert.equal(interpolate(c, .05), -.5); assert.ok(Number.isNaN(interpolate(c, .3))); });
@@ -261,7 +274,7 @@ function rankedFixture(gaps = [-3, 0, 0, 2]) {
     lebron: -.5 + gap, war: -.5 + war[i], residual: { lebron: gap, war: war[i] },
     valuePercentile: { lebron: rank(gaps, gap), war: rank(war, war[i]) } }));
   Object.assign(v.coverage, { matched: gaps.length, eligible: gaps.length, eligiblePlayerSeasons: gaps.length, sourcePlayerSeasons: gaps.length + 1 });
-  return b;
+  return withGapScores(b);
 }
 test('each metric and window validates its own full matched cohort ranks', () => {
   const b = rankedFixture();
@@ -512,4 +525,60 @@ test('constant-step explanation is conditional on the authoritative model name',
   assert.doesNotMatch(salaryComparison(view, 'war', knot).shape, /same at every/);
   view.models.war.name = 'Straight line'; assert.match(salaryComparison(view, 'war', knot).shape, /same at every supported salary.*straight line/);
   view.models.war.name = 'Unconstrained smooth'; assert.doesNotMatch(salaryComparison(view, 'war', knot).shape, /same at every/);
+});
+
+test('gap size preserves zero, sign, order, exact ties and positive-unit scaling without centering', () => {
+  const x = [-8, -2, 0, 2, 3], before = [...x], result = gapSizes(x);
+  assert.equal(result.metadata.scale, 2); assert.deepEqual(result.multiples, [-4, -1, 0, 1, 1.5]);
+  assert.deepEqual(gapSizes(x.map(v => v * 100)).multiples, result.multiples); assert.deepEqual(x, before);
+  assert.deepEqual(gapSizes([2, 2]).multiples, [1, 1]); assert.deepEqual(gapSizes([7]).multiples, [1]);
+  assert.deepEqual(gapSizes([...x].reverse()).multiples, [...result.multiples].reverse());
+  for (const bad of [[Number.MAX_VALUE], [], [1, NaN], [Infinity], [null]]) assert.throws(() => gapSizes(bad));
+});
+test('zero and unrepresentable gap cohorts withhold every ratio without epsilon or fallback', () => {
+  for (const x of [[0], [0, 0, 2]]) {
+    const result = gapSizes(x); assert.equal(result.metadata.reason, 'zero-scale'); assert.equal(result.metadata.scale, null); assert.ok(result.multiples.every(v => v === null));
+  }
+  for (const x of [[1e-308, 1e-308, 1e308], [1e-308, 1e308, 1e308]]) {
+    const result = gapSizes(x); assert.equal(result.metadata.reason, 'unrepresentable-ratio'); assert.equal(result.metadata.status, 'unavailable'); assert.ok(result.multiples.every(v => v === null));
+  }
+  assert.deepEqual(gapSizes([1e308, 1e308]).multiples, [1, 1]);
+  assert.deepEqual(gapSizes([Number.MIN_VALUE, 2 * Number.MIN_VALUE]).multiples, [.5, 1]);
+  assert.deepEqual(gapSizes([-1e-300, 1e-300, 2e-300]).multiples, [-1, 1, 2]);
+});
+for (const [name, mutate] of Object.entries({
+  'missing cohort': v => { delete v.gapSize; },
+  'missing metric': v => { delete v.gapSize.war; },
+  'wrong method': v => { v.gapSize.war.method = 'rms'; },
+  'wrong count': v => { v.gapSize.war.cohortN--; },
+  'wrong scale': v => { v.gapSize.war.scale *= 2; },
+  'nonfinite scale': v => { v.gapSize.war.scale = Infinity; },
+  'null scale': v => { v.gapSize.war.scale = null; },
+  'wrong status': v => { v.gapSize.war.status = 'unavailable'; },
+  'wrong reason': v => { v.gapSize.war.reason = 'zero-scale'; },
+  'missing player': v => { delete v.players[0].gapMultiple; },
+  'missing player metric': v => { delete v.players[0].gapMultiple.war; },
+  'wrong multiple': v => { v.players[0].gapMultiple.war += .1; },
+  'null multiple': v => { v.players[0].gapMultiple.war = null; },
+  'nonfinite multiple': v => { v.players[0].gapMultiple.war = Infinity; },
+})) test(`gap-size boundary rejects ${name}`, () => { const b = rankedFixture(); mutate(b.views[0]); assert.throws(() => validateBundle(b), /gap|object/); });
+test('zero-scale null state is required and near-zero scale corruption fails closed', () => {
+  const b = rankedFixture([0, 0, 0]); assert.equal(validateBundle(b).views[0].gapSize.war.status, 'unavailable');
+  assert.equal(playerComparisonCopy(b.views[0].players[0], 'war', b.views[0]).magnitude, 'Unavailable');
+  assert.match(gapScaleCopy('war', b.views[0]), /median absolute league gap is zero.*3 matched players/);
+  b.views[0].players[0].gapMultiple.war = 0; assert.throws(() => validateBundle(b), /gap-size/);
+  const tiny = rankedFixture([1e-300, 2e-300, 3e-300]); validateBundle(tiny);
+  tiny.views[0].gapSize.war.scale *= 2; assert.throws(() => validateBundle(tiny), /gap-size/);
+});
+test('gap-size copy preserves units and the full cohort across filters', () => {
+  const view = validateBundle(rankedFixture()).views[0], p = filterPlayers(view, 'TEST', '')[0];
+  assert.match(playerComparisonCopy(p, 'war', view).magnitude, /× median absolute league gap/);
+  assert.match(gapScaleCopy('war', view), /WAR · 4 matched players/);
+  assert.equal(p.gapMultiple.war, view.players[0].gapMultiple.war);
+  view.window = 3; assert.match(gapScaleCopy('war', view), /WAR\/observed season/);
+  assert.match(gapScaleCopy('lebron', view), /impact points\/100 possessions/);
+  assert.equal(gapMultiple(null), 'Unavailable'); assert.equal(gapMultiple(0), '0.00 × median absolute league gap');
+  assert.equal(gapMultiple(-2), '−2.00 × median absolute league gap');
+  assert.match(gapMultiple(1e-300), /^\+1e-300 ×/); assert.match(gapMultiple(-1e-300), /^−1e-300 ×/); assert.match(gapMultiple(1e308), /^\+1e\+308 ×/);
+  assert.throws(() => gapMultiple(Infinity));
 });
