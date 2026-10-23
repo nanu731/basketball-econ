@@ -118,9 +118,11 @@ async function mountedScenario() {
       const abs = view.players.map(p => Math.abs(p.residual[metric])).sort((a, b) => a - b), mid = Math.floor(abs.length / 2);
       const scale = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2, ratio = chosen.residual[metric] / scale;
       const magnitude = Math.abs(ratio), formatted = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? String(Number(magnitude.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(magnitude);
-      check(q('selected-magnitude').textContent.startsWith(`${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${formatted} × median absolute league gap`), 'Selected magnitude differs from the full league cohort');
+      check(q('selected-magnitude').textContent.startsWith(`${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${formatted} × typical league gap`), 'Selected magnitude differs from the full league cohort');
       check(q('table-gap')?.textContent.includes(`(${metric.toUpperCase()})`), 'Live table gap-size metric is missing or stale; rebuild with the active-metric table header');
-      check(q('selected-scale').textContent.includes(String(Number(scale.toPrecision(6)))) && q('selected-scale').textContent.includes(`${view.players.length} matched players`), 'Native scale/full cohort context missing');
+      const scaleText = scale < .005 || scale >= 1e6 ? String(Number(scale.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(scale);
+      check(q('selected-scale').textContent.includes(`about ${scaleText}`) && q('selected-scale').textContent.includes('median distance') && !q('selected-scale').textContent.includes('matched players') && q('selected-cohort').textContent.includes(`${view.players.length} eligible matched players`), 'Rounded native scale or single full cohort context missing');
+      check(getComputedStyle(q('selected-magnitude')).fontSize === '18px' && getComputedStyle(q('selected-magnitude')).fontWeight === '600', 'Gap-size number hierarchy missing');
     };
     choose(player); connector(); gapSize(player, 'war', one);
     const pinnedRank = q('selected-percentile').textContent; hover(dots().find(d => d.dataset.player === peer.id));

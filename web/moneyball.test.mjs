@@ -565,20 +565,24 @@ for (const [name, mutate] of Object.entries({
 test('zero-scale null state is required and near-zero scale corruption fails closed', () => {
   const b = rankedFixture([0, 0, 0]); assert.equal(validateBundle(b).views[0].gapSize.war.status, 'unavailable');
   assert.equal(playerComparisonCopy(b.views[0].players[0], 'war', b.views[0]).magnitude, 'Unavailable');
-  assert.match(gapScaleCopy('war', b.views[0]), /median absolute league gap is zero.*3 matched players/);
+  assert.match(gapScaleCopy('war', b.views[0]), /median distance from the line is zero/);
   b.views[0].players[0].gapMultiple.war = 0; assert.throws(() => validateBundle(b), /gap-size/);
   const tiny = rankedFixture([1e-300, 2e-300, 3e-300]); validateBundle(tiny);
   tiny.views[0].gapSize.war.scale *= 2; assert.throws(() => validateBundle(tiny), /gap-size/);
 });
 test('gap-size copy preserves units and the full cohort across filters', () => {
   const view = validateBundle(rankedFixture()).views[0], p = filterPlayers(view, 'TEST', '')[0];
-  assert.match(playerComparisonCopy(p, 'war', view).magnitude, /× median absolute league gap/);
-  assert.match(gapScaleCopy('war', view), /WAR · 4 matched players/);
+  assert.match(playerComparisonCopy(p, 'war', view).magnitude, /× typical league gap/);
+  assert.match(gapScaleCopy('war', view), /median distance.*about 1.00 WAR/);
+  assert.doesNotMatch(gapScaleCopy('war', view), /matched players/);
+  assert.match(playerComparisonCopy(p, 'war', view).cohort, /Among 4 eligible matched players/);
   assert.equal(p.gapMultiple.war, view.players[0].gapMultiple.war);
   view.window = 3; assert.match(gapScaleCopy('war', view), /WAR\/observed season/);
   assert.match(gapScaleCopy('lebron', view), /impact points\/100 possessions/);
-  assert.equal(gapMultiple(null), 'Unavailable'); assert.equal(gapMultiple(0), '0.00 × median absolute league gap');
-  assert.equal(gapMultiple(-2), '−2.00 × median absolute league gap');
+  assert.equal(gapMultiple(null), 'Unavailable'); assert.equal(gapMultiple(0), '0.00 × typical league gap');
+  assert.equal(gapMultiple(-2), '−2.00 × typical league gap');
   assert.match(gapMultiple(1e-300), /^\+1e-300 ×/); assert.match(gapMultiple(-1e-300), /^−1e-300 ×/); assert.match(gapMultiple(1e308), /^\+1e\+308 ×/);
   assert.throws(() => gapMultiple(Infinity));
+  view.gapSize.war.scale = 1.14398529975314; assert.match(gapScaleCopy('war', view), /about 1.14 WAR\/observed season/);
+  view.gapSize.war.scale = 1e-300; assert.match(gapScaleCopy('war', view), /about 1e-300 WAR/);
 });

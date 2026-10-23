@@ -249,16 +249,17 @@ export const salaryCoverage = (v: View): string => { const c = v.coverage; retur
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
 export const warOptionLabel = (window: View['window']): string => window === 1 ? 'Season contribution · WAR' : 'Average season contribution · WAR';
 
-export function gapMultiple(value: number | null): string {
-  if (value === null) return 'Unavailable';
+function gapNumber(value: number): string {
   const magnitude = Math.abs(num(value));
-  const display = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? Number(magnitude.toPrecision(3)).toString() : decimal(magnitude);
-  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${display} × median absolute league gap`;
+  return magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? Number(magnitude.toPrecision(3)).toString() : decimal(magnitude);
+}
+export function gapMultiple(value: number | null): string {
+  return value === null ? 'Unavailable' : `${value > 0 ? '+' : value < 0 ? '−' : ''}${gapNumber(value)} × typical league gap`;
 }
 export function gapScaleCopy(metric: Metric, view: View): string {
   const scale = view.gapSize[metric];
   const unit = metric === 'war' ? view.window > 1 ? 'WAR/observed season' : 'WAR' : 'impact points/100 possessions';
-  return scale.status === 'available' ? `Median absolute league gap: ${Number(scale.scale!.toPrecision(6))} ${unit} · ${scale.cohortN} matched players.` : `Gap size unavailable: ${scale.reason === 'zero-scale' ? 'the median absolute league gap is zero' : scale.reason === 'unrepresentable-ratio' ? 'the ratio cannot be represented safely' : 'the scale is invalid'}. ${scale.cohortN} matched players.`;
+  return scale.status === 'available' ? `Typical league gap (median distance): about ${gapNumber(scale.scale!)} ${unit}.` : `Gap size unavailable: ${scale.reason === 'zero-scale' ? 'the median distance from the line is zero' : scale.reason === 'unrepresentable-ratio' ? 'the ratio cannot be represented safely' : 'the scale is invalid'}.`;
 }
 
 export function normalizePlayerSearch(value: string): string {
@@ -610,7 +611,7 @@ export function mountMoneyball(root: HTMLElement): void {
     if (records.open) renderTable();
     else if (table.childElementCount) table.replaceChildren();
     txt('table-cost', units.value === 'share' ? 'Compensation (% cap)' : active.window === 1 ? 'Compensation (USD)' : 'Avg compensation (end-cap USD)');
-    txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`); txt('table-percentile', `Value for pay percentile (${m.toUpperCase()})`); txt('table-gap', `Gap size (${m.toUpperCase()}) · × median absolute league gap`);
+    txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`); txt('table-percentile', `Value for pay percentile (${m.toUpperCase()})`); txt('table-gap', `Gap size (${m.toUpperCase()}) · × typical league gap`);
     const p = active.players.find(p => p.id === selected);
     txt('selection-name', p?.name ?? 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {
