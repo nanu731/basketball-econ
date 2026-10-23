@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -10,7 +10,7 @@ const createViewLoader = (index, read, asOf = AS_OF) => createViewLoaderAt(index
 const contrast = (supported, estimate = null) => ({ supported, estimate, low: supported ? estimate - 0.1 : null, high: supported ? estimate + 0.1 : null, nStart: 3, nEnd: 3, reason: supported ? null : 'Synthetic unsupported endpoint' });
 function fixture() {
   const model = { name: 'Synthetic linear test', method: 'Test fixture only', validation: 'Test fixture only', intervalLabel: 'Synthetic conditional interval', curve: [{ x: 0, y: -1, low: -2, high: 0, extraMillion: contrast(true, .1) }, { x: .1, y: 0, low: -1, high: 1, extraMillion: contrast(true, .1) }, { x: .2, y: 1, low: 0, high: 2, extraMillion: contrast(false) }] };
-  return { schemaVersion: 'moneyball.v1', dataVersion: 'synthetic-test-only', defaultView: '2025-1', publication: { status: 'private-preview', note: 'Synthetic test fixture only' }, sources: [{ label: 'Synthetic source', url: 'https://example.com/test', version: 'fixture', retrieved: '2026-10-23' }], definitions: { salary: 'Synthetic salary definition', eligibility: 'Synthetic eligibility', uncertainty: 'Synthetic uncertainty', limitations: ['Test fixture only'] }, views: [{ id: '2025-1', endSeason: 2025, window: 1, seasons: [2025], referenceCapUsd: 100000000, representation: 'player-season', coverage: { eligible: 1, matched: 1, includedKnownSalaryUsd: 5000000, allKnownActiveSalaryUsd: 6000000, unknownSalaryPlayerSeasons: 1, sourcePlayerSeasons: 2, eligiblePlayerSeasons: 1, excluded: [], note: 'Test only' }, players: [{ id: '999999999', name: 'SYNTHETIC TEST PLAYER', teams: ['TEST'], observedSeasons: [2025], minutes: 1, possessions: 2, salaryCapShare: .05, salaryUsd: 5000000, lebron: -1, war: -2, fitted: { lebron: -.5, war: -.5 }, residual: { lebron: -.5, war: -1.5 }, label: false, flags: ['Synthetic fixture only'] }], models: { lebron: structuredClone(model), war: structuredClone(model) }, teams: [{ team: 'TEST', salaryUsd: null, war: null, status: 'unavailable', attributablePlayerSeasons: 0, eligiblePlayerSeasons: 1, excludedTradeCount: 1, excludedMissingCount: 0, note: 'Synthetic unavailable allocation' }] }] };
+  return { schemaVersion: 'moneyball.v1', dataVersion: 'synthetic-test-only', defaultView: '2025-1', publication: { status: 'private-preview', note: 'Synthetic test fixture only' }, sources: [{ label: 'Synthetic source', url: 'https://example.com/test', version: 'fixture', retrieved: '2026-10-23' }], definitions: { salary: 'Synthetic salary definition', eligibility: 'Synthetic eligibility', uncertainty: 'Synthetic uncertainty', limitations: ['Test fixture only'] }, views: [{ id: '2025-1', endSeason: 2025, window: 1, seasons: [2025], referenceCapUsd: 100000000, representation: 'player-season', coverage: { eligible: 1, matched: 1, includedKnownSalaryUsd: 5000000, allKnownActiveSalaryUsd: 6000000, unknownSalaryPlayerSeasons: 1, sourcePlayerSeasons: 2, eligiblePlayerSeasons: 1, excluded: [], note: 'Test only' }, players: [{ id: '999999999', name: 'SYNTHETIC TEST PLAYER', teams: ['TEST'], observedSeasons: [2025], minutes: 1, possessions: 2, salaryCapShare: .05, salaryUsd: 5000000, lebron: -1, war: -2, fitted: { lebron: -.5, war: -.5 }, residual: { lebron: -.5, war: -1.5 }, valuePercentile: { lebron: 50, war: 50 }, label: false, flags: ['Synthetic fixture only'] }], models: { lebron: structuredClone(model), war: structuredClone(model) }, teams: [{ team: 'TEST', salaryUsd: null, war: null, status: 'unavailable', attributablePlayerSeasons: 0, eligiblePlayerSeasons: 1, excludedTradeCount: 1, excludedMissingCount: 0, note: 'Synthetic unavailable allocation' }] }] };
 }
 test('accepts negative outcomes and unknown team attribution as null', () => { assert.equal(validateBundle(fixture()).views[0].players[0].war, -2); });
 test('interpolates the visible curve and never extrapolates', () => { const c = fixture().views[0].models.war.curve; assert.equal(interpolate(c, .05), -.5); assert.ok(Number.isNaN(interpolate(c, .3))); });
@@ -246,4 +246,64 @@ test('desktop labels prioritize the three requested players before earlier outli
   assert.deepEqual(chartLabels(players, '999', 375).map(p => p.id), ['999']);
   players.find(p => p.id === '203999').label = false;
   assert.ok(!chartLabels(players, '', 800).some(p => p.id === '203999'));
+});
+
+test('value-for-pay ranks use exact tie midpoints, negatives and self without forced endpoints', () => {
+  assert.deepEqual(valuePercentiles([]), []);
+  assert.deepEqual(valuePercentiles([7]), [50]);
+  assert.deepEqual(valuePercentiles([-2, -2, -2]), [50, 50, 50]);
+  assert.deepEqual(valuePercentiles([-3, 0, 0, 2]), [12.5, 50, 50, 87.5]);
+  assert.deepEqual(valuePercentiles([-3, -2, 0, 9]), [12.5, 37.5, 62.5, 87.5]);
+  for (const invalid of [NaN, Infinity, -Infinity, null, undefined, '2']) assert.throws(() => valuePercentiles([0, invalid]));
+});
+test('stored ties differ from displayed ties and do not use an epsilon', () => {
+  const x = .0574276985275538;
+  assert.deepEqual(valuePercentiles([x, x + 1e-17]), [25, 75]);
+  const stored = parseJSONBytes(new TextEncoder().encode('[-1,0.0574276985275538,0.0574276985275538,0.0574286985275538]'), 200);
+  assert.deepEqual(valuePercentiles(stored), [12.5, 50, 50, 87.5]);
+});
+function rankedFixture(gaps = [-3, 0, 0, 2]) {
+  const b = fixture(), v = b.views[0], source = v.players[0];
+  const war = [...gaps].reverse();
+  // Independent definition, intentionally not the production ranking helper.
+  const rank = (values, r) => 100 * (values.filter(x => x < r).length + .5 * values.filter(x => x === r).length) / values.length;
+  v.players = gaps.map((gap, i) => ({ ...structuredClone(source), id: String(999999990 + i), name: `SYNTHETIC ${i}`, teams: [i % 2 ? 'OTHER' : 'TEST'],
+    lebron: -.5 + gap, war: -.5 + war[i], residual: { lebron: gap, war: war[i] },
+    valuePercentile: { lebron: rank(gaps, gap), war: rank(war, war[i]) } }));
+  Object.assign(v.coverage, { matched: gaps.length, eligible: gaps.length, eligiblePlayerSeasons: gaps.length, sourcePlayerSeasons: gaps.length + 1 });
+  return b;
+}
+test('each metric and window validates its own full matched cohort ranks', () => {
+  const b = rankedFixture();
+  const other = rankedFixture([-2, 3, 8]).views[0];
+  other.id = '2025-3'; other.window = 3; other.representation = 'player-window'; other.seasons = [2023, 2024, 2025];
+  b.views.push(other);
+  assert.doesNotThrow(() => validateBundle(b));
+  assert.notEqual(b.views[0].players[0].valuePercentile.lebron, b.views[0].players[0].valuePercentile.war);
+  assert.notEqual(b.views[0].players[0].valuePercentile.lebron, other.players[0].valuePercentile.lebron);
+});
+test('team and search selection retain the full-cohort scores and denominator', () => {
+  const v = validateBundle(rankedFixture()).views[0];
+  const original = structuredClone(v.players);
+  const shown = v.players.filter(p => p.teams.includes('TEST') && p.name.includes('0'));
+  assert.equal(resolvePlayerSelection(shown, '', 'SYNTHETIC 0'), shown[0].id);
+  assert.equal(shown[0].valuePercentile.lebron, 12.5);
+  assert.equal(v.players.length, 4); assert.deepEqual(v.players, original);
+});
+for (const [label, mutate] of Object.entries({
+  missing: p => { delete p.valuePercentile; },
+  'missing metric': p => { delete p.valuePercentile.war; },
+  nonfinite: p => { p.valuePercentile.war = NaN; },
+  negative: p => { p.valuePercentile.war = -1; },
+  'over 100': p => { p.valuePercentile.war = 101; },
+  'wrong rank': p => { p.valuePercentile.war = 50; },
+  'swapped metrics': p => { [p.valuePercentile.lebron, p.valuePercentile.war] = [p.valuePercentile.war, p.valuePercentile.lebron]; },
+})) test(`rejects ${label} value percentile`, () => { const b = rankedFixture(); mutate(b.views[0].players[0]); assert.throws(() => validateBundle(b)); });
+test('display rounding is not accepted as the stored percentile', () => {
+  const b = rankedFixture([-2, 0, 4]); b.views[0].players[0].valuePercentile.lebron = 16.7;
+  assert.throws(() => validateBundle(b), /value percentile/);
+});
+test('percentile formatting rounds only the display to one decimal', () => {
+  assert.equal(percentile(100 / 6), '16.7'); assert.equal(percentile(50), '50.0'); assert.equal(percentile(87.5), '87.5');
+  for (const invalid of [null, undefined, NaN, Infinity, -1, 101]) assert.throws(() => percentile(invalid));
 });

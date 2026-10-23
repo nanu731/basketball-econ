@@ -3,7 +3,7 @@ export type Metric = 'lebron' | 'war';
 export interface Contrast { supported: boolean; estimate: number | null; low: number | null; high: number | null; nStart: number; nEnd: number; reason: string | null }
 export interface Knot { x: number; y: number; low: number | null; high: number | null; extraMillion: Contrast }
 export interface Model { name: string; method: string; validation: string; intervalLabel: string; curve: Knot[] }
-export interface Player { id: string; name: string; teams: string[]; observedSeasons: number[]; minutes: number; possessions: number; salaryCapShare: number; salaryUsd: number; lebron: number; war: number; fitted: Record<Metric, number>; residual: Record<Metric, number>; label: boolean; flags: string[] }
+export interface Player { id: string; name: string; teams: string[]; observedSeasons: number[]; minutes: number; possessions: number; salaryCapShare: number; salaryUsd: number; lebron: number; war: number; fitted: Record<Metric, number>; residual: Record<Metric, number>; valuePercentile: Record<Metric, number>; label: boolean; flags: string[] }
 export interface Team { team: string; salaryUsd: number | null; war: number | null; status: 'attributable-sample' | 'unavailable'; attributablePlayerSeasons: number; eligiblePlayerSeasons: number; excludedTradeCount: number; excludedMissingCount: number; note: string }
 export interface View { id: string; endSeason: number; window: 1 | 3 | 5; seasons: number[]; referenceCapUsd: number; representation: string; coverage: { eligible: number; matched: number; includedKnownSalaryUsd: number; allKnownActiveSalaryUsd: number; unknownSalaryPlayerSeasons: number; sourcePlayerSeasons: number; eligiblePlayerSeasons: number; excluded: { reason: string; count: number }[]; note: string }; players: Player[]; models: Record<Metric, Model>; teams: Team[] }
 export interface Bundle { schemaVersion: 'moneyball.v1'; dataVersion: string; defaultView: string; publication: { status: 'private-preview' | 'cleared'; note: string }; sources: { label: string; url: string; version: string; retrieved: string }[]; definitions: { salary: string; eligibility: string; uncertainty: string; limitations: string[] }; views: View[] }
@@ -26,6 +26,19 @@ const nullablePair = (lo: unknown, hi: unknown): void => {
   if (lo === null && hi === null) return;
   if (num(lo) > num(hi)) fail('interval endpoint order');
 };
+/** Exact stored-value ties; a full cohort is rejected if any residual is invalid. */
+export function valuePercentiles(residuals: number[]): number[] {
+  const values = arr(residuals).map(num);
+  const sorted = [...values].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+  const ranks = new Map<number, number>();
+  for (let start = 0; start < sorted.length;) {
+    let end = start + 1;
+    while (end < sorted.length && sorted[end] === sorted[start]) end++;
+    ranks.set(sorted[start], 100 * (start + .5 * (end - start)) / sorted.length);
+    start = end;
+  }
+  return values.map(value => ranks.get(value)!);
+}
 export function interpolate(curve: Knot[], x: number): number {
   if (!Number.isFinite(x) || x < curve[0].x || x > curve[curve.length - 1].x) return NaN;
   const j = curve.findIndex(k => k.x >= x);
@@ -122,8 +135,16 @@ export function validateBundle(input: unknown, asOf: Date = new Date()): Bundle 
       const seasons = arr(p.observedSeasons, 5); if (!seasons.length || seasons.some(s => !v.seasons.includes(s))) fail('observed seasons'); unique(seasons);
       nonneg(p.minutes); nonneg(p.possessions); nonneg(p.salaryCapShare); nonneg(p.salaryUsd);
       if (!close(p.salaryUsd, p.salaryCapShare * v.referenceCapUsd)) fail('money units');
-      obj(p.fitted); obj(p.residual); if (typeof p.label !== 'boolean') fail('label flag'); arr(p.flags, 30).forEach(f => str(f));
+      obj(p.fitted); obj(p.residual); obj(p.valuePercentile); if (typeof p.label !== 'boolean') fail('label flag'); arr(p.flags, 30).forEach(f => str(f));
       metrics.forEach(m => { num(p[m]); num(p.fitted[m]); num(p.residual[m]); if (!close(p.fitted[m], interpolate(v.models[m].curve, p.salaryCapShare)) || !close(p.residual[m], p[m] - p.fitted[m])) fail('visible reference or residual mismatch'); });
+    });
+    metrics.forEach(m => {
+      const expected = valuePercentiles(players.map(p => p.residual[m]));
+      players.forEach((p, i) => {
+        const score = num(p.valuePercentile[m]);
+        // This tolerance covers JSON encoding of the score, never residual ties.
+        if (score < 0 || score > 100 || Math.abs(score - expected[i]) > 1e-12) fail('value percentile differs from full matched cohort');
+      });
     });
     const teams = arr(v.teams, 40); unique(teams.map(t => obj(t).team));
     teams.forEach(t => {
@@ -186,6 +207,11 @@ export const viewLabel = (v: View): string => v.window === 1 ? seasonLabel(v.end
 // Reuse formatters: rebuilding locale/currency rules for every dot slows filtering.
 const decimalFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 const moneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const percentileFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+export const percentile = (v: number): string => {
+  const score = num(v); if (score < 0 || score > 100) fail('percentile range');
+  return percentileFormatter.format(score);
+};
 export const decimal = (v: number): string => {
   if (v == null) throw new TypeError('Cannot format a missing number');
   return decimalFormatter.format(v);

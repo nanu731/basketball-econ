@@ -391,6 +391,12 @@ test("browser export matches the visible reference, splits views and refuses syn
   exports <- build_browser_exports(list(analysis), allow_test_fixture = TRUE)
   bundle <- jsonlite::fromJSON(rawToChar(json_bytes(exports$view_bundles[[1]])), simplifyVector = FALSE)
   view <- bundle$views[[1]]
+  for (metric in c("lebron", "war")) {
+    values <- vapply(view$players, function(p) p$residual[[metric]], double(1))
+    scores <- vapply(view$players, function(p) p$valuePercentile[[metric]], double(1))
+    independent <- vapply(values, function(r) 100 * (sum(values < r) + .5 * sum(values == r)) / length(values), double(1))
+    stopifnot(max(abs(scores - independent)) < 1e-12)
+  }
   stopifnot(exports$index$schemaVersion == "moneyball.index.v1", length(bundle$views) == 1L,
             exports$index$views[[1]]$url == "/data/moneyball/v1/views/2026-1.json",
             length(view$players) == 80L, is.list(view$players[[1]]$teams),
@@ -473,6 +479,29 @@ test("JSON curve knots remain strictly ordered when distinct R doubles encode id
   inside <- encoded$curve$x >= min(curve$knots) & encoded$curve$x <= max(curve$knots)
   expected <- visible_interpolation(curve$knots, curve$expected, encoded$curve$x[inside])
   stopifnot(max(abs(expected - encoded$curve$y[inside])) < 1e-12)
+})
+
+test("value-for-pay percentiles use exact tie midpoints including self and retain negative gaps", {
+  stopifnot(identical(value_for_pay_percentile(numeric()), numeric()),
+    identical(value_for_pay_percentile(7), 50),
+    identical(value_for_pay_percentile(rep(-2, 4)), rep(50, 4)),
+    identical(value_for_pay_percentile(c(-3, 0, 0, 2)), c(12.5, 50, 50, 87.5)),
+    identical(value_for_pay_percentile(c(-3, -2, 0, 9)), c(12.5, 37.5, 62.5, 87.5)))
+  for (invalid in list(c(0, NA_real_), c(0, NaN), c(0, Inf), c(0, -Inf), "2")) {
+    expect_error(value_for_pay_percentile(invalid), "finite numeric residual")
+  }
+})
+
+test("percentile ties use the residuals' actual JSON precision without display rounding", {
+  x <- .0574276985275538
+  raw <- c(-1, x, x + 1e-17, x + .000001)
+  stopifnot(raw[2] != raw[3],
+    identical(value_for_pay_percentile(raw), c(12.5, 50, 50, 87.5)))
+  encoded <- jsonlite::fromJSON(rawToChar(json_bytes(raw)))
+  independent <- vapply(encoded, function(r) 100 * (sum(encoded < r) + .5 * sum(encoded == r)) / length(encoded), double(1))
+  stopifnot(identical(value_for_pay_percentile(raw), independent),
+    all(value_for_pay_percentile(c(-1, 0, 0, 1, 2)) > 0),
+    all(value_for_pay_percentile(c(-1, 0, 0, 1, 2)) < 100))
 })
 
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))

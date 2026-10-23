@@ -17,6 +17,16 @@ assert_observed_export_provenance <- function(window) {
   invisible(TRUE)
 }
 
+value_for_pay_percentile <- function(residual) {
+  if (!is.numeric(residual) || !is.null(dim(residual)) || any(!is.finite(residual))) {
+    stop("Value-for-pay ranks require finite numeric residuals; the cohort cannot drop invalid records", call. = FALSE)
+  }
+  if (!length(residual)) return(numeric())
+  # Rank the numbers the browser actually receives, including exact JSON ties.
+  stored <- jsonlite::fromJSON(rawToChar(json_bytes(residual)))
+  100 * (rank(stored, ties.method = "average") - .5) / length(stored)
+}
+
 browser_model <- function(curve) {
   if (length(curve$knots) > 2000L) stop("Browser curve exceeds the reviewed 2000-knot limit", call. = FALSE)
   fit <- curve$fit
@@ -59,6 +69,7 @@ browser_view <- function(analysis) {
   points <- window$points
   expected <- lapply(analysis$models, function(model) visible_interpolation(model$knots, model$expected, points$salary_cap_share))
   residual <- list(lebron = points$lebron - expected$lebron, war = points$war - expected$war)
+  percentiles <- lapply(residual, value_for_pay_percentile)
   label_ids <- unique(c(intersect(points$nba_id, c("203999", "1641705", "1629029")),
     points$nba_id[head(order(points$reference_salary_usd, decreasing = TRUE), 3)],
     points$nba_id[head(order(abs(residual$lebron), decreasing = TRUE), 3)],
@@ -70,6 +81,7 @@ browser_view <- function(analysis) {
       lebron = points$lebron[i], war = points$war[i],
       fitted = list(lebron = expected$lebron[i], war = expected$war[i]),
       residual = list(lebron = residual$lebron[i], war = residual$war[i]),
+      valuePercentile = list(lebron = percentiles$lebron[i], war = percentiles$war[i]),
       label = points$nba_id[i] %in% label_ids, flags = as.list(points$flags[[i]]))
   })
   excluded <- if (nrow(window$excluded)) {
