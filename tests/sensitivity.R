@@ -175,4 +175,29 @@ check_sensitivity('transport prerequisites and identity errors cannot produce di
   expect_sensitivity_error(out_of_season_robustness(duplicate),'distinct identified player-seasons')
 })
 
+check_sensitivity('annual exposure cannot replace prescribed shared-season sentinels', {
+  panel <- synthetic_sensitivity_panel(c('2022-23','2023-24','2024-25','2025-26'))
+  panel$players$minutes[panel$players$season=='2022-23'] <- 100
+  result <- out_of_season_robustness(panel)
+  stopifnot(result$available,
+    identical(result$sentinel_seasons,c('2022-23','2023-24','2025-26')),
+    identical(result$coverage$included_player_seasons,c(0L,30L,30L,30L)))
+  for (outcome in c('lebron','war')) {
+    earliest <- result$results[[paste('2022-23',outcome,sep=':')]]
+    stopifnot(!earliest$available,earliest$reason=='no_eligible_held_out_player_seasons',
+      earliest$test_players==0L,earliest$coverage$source_player_seasons==30L,
+      earliest$coverage$shared_player_seasons==30L,
+      earliest$coverage$included_player_seasons==0L,
+      earliest$coverage$excluded_player_seasons==30L,
+      is.null(earliest$predictions),is.null(earliest$partitions),
+      result$results[[paste('2023-24',outcome,sep=':')]]$available,
+      result$results[[paste('2025-26',outcome,sep=':')]]$available)
+  }
+  # A source season without any comparable salary is not a shared season.
+  missing <- synthetic_sensitivity_panel('2021-22')$players
+  missing$salary_cap_share[] <- NA_real_
+  panel$players <- dplyr::bind_rows(missing,panel$players)
+  stopifnot(identical(out_of_season_robustness(panel)$sentinel_seasons,result$sentinel_seasons))
+})
+
 cat(sprintf('\n%d standalone synthetic sensitivity tests passed.\n',sensitivity_tests))

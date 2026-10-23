@@ -295,18 +295,23 @@ out_of_season_robustness <- function(dataset, config = methods_config()) {
   if (!nrow(rows)) return(list(available = FALSE, reason = "fewer_than_three_shared_completed_seasons",
     coverage = tibble::tibble()))
   check_seasons(sort(unique(rows$season)), as_of = Sys.Date())
-  valid <- !is.na(rows$played) & rows$played & is.finite(rows$minutes) & rows$minutes >= 200 &
-    is.finite(rows$games) & rows$games >= 5 & is.finite(rows$provider_possessions) & rows$provider_possessions > 0 &
+  shared <- !is.na(rows$played) & rows$played &
+    is.finite(rows$provider_possessions) & rows$provider_possessions > 0 &
     is.finite(rows$salary_cap_share) & rows$salary_cap_share >= 0 & is.finite(rows$lebron) & is.finite(rows$war)
+  shared[is.na(shared)] <- FALSE
+  # Freeze sentinel identities before applying the annual exposure rule.
+  seasons <- sort(unique(rows$season[shared]))
+  valid <- shared & is.finite(rows$minutes) & rows$minutes >= 200 &
+    is.finite(rows$games) & rows$games >= 5
   valid[is.na(valid)] <- FALSE
   coverage <- dplyr::bind_rows(lapply(sort(unique(rows$season)), function(season) {
     at <- rows$season == season
     tibble::tibble(season = season, source_player_seasons = sum(at),
       active_player_seasons = sum(at & rows$played, na.rm = TRUE), included_player_seasons = sum(at & valid),
+      shared_player_seasons = sum(at & shared),
       excluded_player_seasons = sum(at & !valid))
   }))
   rows <- rows[valid, ]
-  seasons <- sort(unique(rows$season))
   if (length(seasons) < 3L) return(list(available = FALSE,
     reason = "fewer_than_three_shared_completed_seasons", coverage = coverage))
   held_out <- unique(seasons[c(1L, floor((length(seasons) + 1L) / 2L), length(seasons))])
@@ -323,6 +328,9 @@ out_of_season_robustness <- function(dataset, config = methods_config()) {
       training_seasons = sort(unique(training$season)), training_players = length(unique(training$nba_id)),
       training_observations = nrow(training), test_players = nrow(test),
       coverage = coverage[coverage$season == season, ])
+    if (!nrow(test)) {
+      results[[key]] <- c(base, list(available = FALSE, reason = "no_eligible_held_out_player_seasons")); next
+    }
     fit <- tryCatch(fit_transport_relationship(training, outcome, config), error = function(e) {
       list(available = FALSE, reason = conditionMessage(e))
     })
