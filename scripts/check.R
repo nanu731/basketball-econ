@@ -6,3 +6,5 @@ for (file in files) parse(file)
 cat("Syntax checked:", length(files), "R files\n")
 source("tests/run.R")
 source("tests/sensitivity.R")
+
+source("tests/browser-scores.R")

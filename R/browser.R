@@ -27,6 +27,36 @@ value_for_pay_percentile <- function(residual) {
   100 * (rank(stored, ties.method = "average") - .5) / length(stored)
 }
 
+# Descriptive zero-centered magnitude, with no distributional calibration.
+gap_size <- function(residual) {
+  if (!is.numeric(residual) || !is.null(dim(residual)) || !length(residual) || any(!is.finite(residual))) {
+    stop("Gap size requires a nonempty finite numeric cohort; invalid rows cannot be dropped", call. = FALSE)
+  }
+  stored <- jsonlite::fromJSON(rawToChar(json_bytes(residual)))
+  if (any(!is.finite(stored))) stop("Gap-size cohort cannot be encoded as finite JSON numbers", call. = FALSE)
+  scale <- stats::median(abs(stored))
+  reason <- if (!is.finite(scale)) "invalid-scale" else if (scale <= 0) "zero-scale" else NULL
+  multiples <- if (is.null(reason)) stored / scale else rep(NA_real_, length(stored))
+  encoded <- if (is.null(reason)) jsonlite::fromJSON(rawToChar(json_bytes(multiples))) else multiples
+  if (is.null(reason) && any(!is.finite(multiples) | !is.finite(encoded) | (stored != 0 & encoded == 0))) reason <- "unrepresentable-ratio"
+  available <- is.null(reason)
+  list(metadata = list(method = "median-absolute-visible-gap-v1", cohortN = length(stored),
+      scale = if (available) scale else NULL, status = if (available) "available" else "unavailable", reason = reason),
+    multiples = lapply(multiples, function(x) if (available) unname(x) else NULL))
+}
+
+add_browser_gap_scores <- function(view) {
+  scores <- lapply(c("lebron", "war"), function(metric) gap_size(vapply(view$players, function(p) p$residual[[metric]], double(1))))
+  names(scores) <- c("lebron", "war")
+  view$gapSize <- lapply(scores, `[[`, "metadata")
+  view$players <- lapply(seq_along(view$players), function(i) {
+    player <- view$players[[i]]
+    player$gapMultiple <- lapply(scores, function(score) score$multiples[[i]])
+    player
+  })
+  view
+}
+
 browser_model <- function(curve) {
   if (length(curve$knots) > 2000L) stop("Browser curve exceeds the reviewed 2000-knot limit", call. = FALSE)
   fit <- curve$fit
@@ -100,7 +130,7 @@ browser_view <- function(analysis) {
       excludedMissingCount = row$excluded_missing_player_seasons + row$excluded_unknown_attribution_player_seasons,
       note = "Eligible single-team records whose unique historical salary team agrees with metric membership. Reported salary, not verified payroll; multi-team allocations remain unavailable.")
   })
-  list(id = paste(window$end_season_year, window$window_length, sep = "-"), endSeason = window$end_season_year,
+  add_browser_gap_scores(list(id = paste(window$end_season_year, window$window_length, sep = "-"), endSeason = window$end_season_year,
     window = window$window_length, seasons = as.list(as.integer(substr(window$seasons, 1, 4)) + 1L),
     referenceCapUsd = window$reference_cap_usd,
     representation = if (window$window_length == 1L) "player-season" else "player-window",
@@ -111,7 +141,7 @@ browser_view <- function(analysis) {
       note = paste0(nrow(points), " of ", coverage$exposure_eligible_before_salary,
         " exposure-eligible players have complete matched inputs. Salary coverage uses known comparable amounts only; ",
         coverage$missing_salary_player_seasons, " active player-season salaries are unknown. This is not whole-league or whole-payroll efficiency.")),
-    players = players, models = lapply(analysis$models, browser_model), teams = teams)
+    players = players, models = lapply(analysis$models, browser_model), teams = teams))
 }
 
 build_browser_exports <- function(analyses, allow_test_fixture = FALSE) {
@@ -149,6 +179,12 @@ build_browser_exports <- function(analyses, allow_test_fixture = FALSE) {
       "Bootstrap resampling cannot recover dependence from jointly estimated provider ratings or shared team environments.")))
   common <- list(schemaVersion = "moneyball.v1", publication = list(status = "private-preview",
     note = if (test_only) "SYNTHETIC TEST FIXTURE; NEVER PUBLISH" else "Private review only. Public reuse and release remain unapproved."), sources = sources, definitions = definitions)
+  browser_export_bundle_set(common, views, if (test_only) "test_fixture" else "observed")
+}
+
+browser_export_bundle_set <- function(common, views, data_origin) {
+  ids <- vapply(views, `[[`, character(1), "id")
+  if (!length(ids) || anyDuplicated(ids)) stop("Missing or duplicate browser view", call. = FALSE)
   fingerprint <- list(common = common, views = views)
   version <- paste0("moneyball-v1-", substr(sha256_bytes(json_bytes(fingerprint)), 1, 20))
   bundles <- lapply(seq_along(views), function(i) c(common, list(dataVersion = version, defaultView = ids[i], views = list(views[[i]]))))
@@ -156,7 +192,7 @@ build_browser_exports <- function(analyses, allow_test_fixture = FALSE) {
   index <- list(schemaVersion = "moneyball.index.v1", dataVersion = version, defaultView = ids[1],
     views = lapply(seq_along(views), function(i) list(id = ids[i], endSeason = views[[i]]$endSeason,
       window = views[[i]]$window, url = paste0("/data/moneyball/v1/views/", ids[i], ".json"))))
-  list(index = index, view_bundles = bundles, data_origin = if (test_only) "test_fixture" else "observed")
+  list(index = index, view_bundles = bundles, data_origin = data_origin)
 }
 
 write_private_browser_exports <- function(exports, output_dir = "outputs/private/browser-v1") {
