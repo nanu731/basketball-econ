@@ -417,9 +417,11 @@ export function mountMoneyball(root: HTMLElement): void {
   function closeSuggestions() { suggestionModel.close(); renderSuggestions(); }
   function searchStatus() {
     const chosen = active?.players.find(p => p.id === selected);
+    const count = active ? filterPlayers(active, team.value, search.value).length : 0;
     txt('search-result', chosen ? `Selected ${chosen.name}.` : !suggestionsReady(search.value) ?
-      'Type at least two characters. Accents and punctuation are optional.' : suggestionModel.state.open ?
-      `${suggestionModel.state.matches.length} matches. Use the arrow keys and Enter, or choose a name.` : 'Choose a suggested name to select a player.');
+      'Type at least two characters. Accents and punctuation are optional.' : count === 0 ?
+      'No players found. Try another name, team or season.' : suggestionModel.state.open ?
+      `${count} ${count === 1 ? 'match' : 'matches'}. Use the arrow keys and Enter, or choose a name.` : 'Choose a suggested name to select a player.');
   }
   function updateSuggestions() {
     suggestionModel.update(search.disabled ? null : active, team.value, search.value);
