@@ -1,5 +1,6 @@
 # Offline boundary tests. All artificial observations stay under tests/.
 for (file in sort(list.files("R", pattern = "\\.R$", full.names = TRUE))) source(file)
+source("tests/fixtures/analysis-fixtures.R")
 
 test_count <- 0L
 test <- function(label, expression) {
@@ -184,6 +185,103 @@ test("multiple historical amounts remain unresolved and zero placeholders stay m
   stopifnot(all(is.na(reconciled$players$salary_reported_usd)),
             reconciled$players$salary_status[reconciled$players$season == "2024-25"] == "multiple_source_records",
             reconciled$players$salary_status[reconciled$players$season == "2025-26"] == "unsupported_zero")
+})
+
+test("standardized windows keep identical seasons for cost and both outcomes", {
+  window <- make_player_window(synthetic_window_dataset(), "2025-26", 2L,
+    list(id = "TEST_POSITIVE_EXPOSURE", minimum_minutes = 0, minimum_possessions = 1, minimum_games = 1))
+  a <- window$points[window$points$nba_id == "1", ]
+  b <- window$points[window$points$nba_id == "2", ]
+  stopifnot(nrow(window$points) == 2L, a$lebron == 5, a$war == 6,
+            abs(a$salary_cap_share - .15) < 1e-12,
+            abs(a$reference_salary_usd - 23197050) < 1e-6,
+            a$observed_seasons == 2L, b$observed_seasons == 1L, b$war == 2,
+            window$excluded$nba_id == "3",
+            "missing_or_unresolved_salary" %in% window$excluded$reasons[[1]])
+})
+
+test("team annual summaries use the full window denominator and require attribution evidence", {
+  dataset <- synthetic_window_dataset()
+  # A one-season player is attributable to LAL in this artificial worked example.
+  dataset$players$team_count[dataset$players$nba_id == 2] <- 1L
+  dataset$players$team_attribution_verified[dataset$players$nba_id == 2] <- TRUE
+  dataset$players$attributed_team[dataset$players$nba_id == 2] <- "LAL"
+  dataset$teams <- dataset$teams[!(dataset$teams$nba_id == 2 & dataset$teams$team == "DAL"), ]
+  window <- make_player_window(dataset, "2025-26", 2L,
+    list(id = "TEST_POSITIVE_EXPOSURE", minimum_minutes = 0, minimum_possessions = 1, minimum_games = 1))
+  teams <- summarize_attributable_teams(window)
+  lal <- teams[teams$team == "LAL", ]
+  sas <- teams[teams$team == "SAS", ]
+  stopifnot(lal$war_average_annual == 1, lal$reported_salary_average_annual_reference_usd == 7732350,
+            lal$attributable_seasons == 1L, sas$war_average_annual == 6)
+  dataset$players$team_attribution_verified <- FALSE
+  unverified <- summarize_attributable_teams(make_player_window(dataset, "2025-26", 2L,
+    list(id = "TEST_POSITIVE_EXPOSURE", minimum_minutes = 0, minimum_possessions = 1, minimum_games = 1)))
+  stopifnot(all(is.na(unverified$war_average_annual)))
+})
+
+test("team validation rejects aggregate, unknown and malformed memberships with historical aliases preserved", {
+  for (code in c("TOT", "ZZZ", "SAS/", "/SAS", "SAS//LAL")) {
+    bad <- jsonlite::fromJSON(rawToChar(fixture_bytes))
+    bad$players$team_name[1] <- code
+    expect_error(normalize_lebron(json_bytes(bad), "2025-26"), "team")
+  }
+  stopifnot(identical(canonical_team_codes("NJN/NOH", "2009-10"), c("NJN", "NOH")),
+            identical(canonical_team_codes("BRK/CHO/PHO", "2025-26"), c("BKN", "CHA", "PHX")))
+  expect_error(canonical_team_codes("NJN", "2025-26"), "Unsupported")
+})
+
+test("a valid older manifest under a misleading cache filename cannot satisfy a new-season request", {
+  cache <- tempfile("basketball-wrong-season-cache-")
+  older <- jsonlite::fromJSON(rawToChar(fixture_bytes))
+  older$players$Season <- "2024-25"; older$players$year <- 2025L
+  snapshot <- acquire_lebron("2024-25", cache_dir = cache,
+    transport = function(request) json_bytes(older), as_of = as.Date("2026-10-23"))
+  misleading <- file.path(cache, sub("lebron-2024-25-", "lebron-2025-26-", basename(snapshot$manifest_path), fixed = TRUE))
+  stopifnot(file.copy(snapshot$manifest_path, misleading))
+  expect_error(acquire_lebron("2025-26", cache_dir = cache, offline = TRUE,
+    as_of = as.Date("2026-10-23")), "caller request")
+})
+
+test("private matched artifacts preserve mapped candidate identities and conflicting amounts", {
+  a <- read_salary_import("tests/fixtures/salaries.csv", "tests/fixtures/salaries.metadata.json")
+  b <- a; b$provenance$source_id <- "TEST_SECOND_SOURCE"
+  b$records$source_id <- "TEST_SECOND_SOURCE"
+  b$records$source_player_id <- paste0("SECOND_", b$records$source_player_id)
+  b$records$salary_reported_usd[b$records$nba_id %in% 1641705L] <- 20000000
+  salary <- reconcile_salary_imports(list(a, b), "test_annual_compensation")
+  matched <- match_player_seasons(normalize_lebron(fixture_bytes, "2025-26"), salary)
+  saved <- write_private_dataset(matched, tempfile("basketball-private-lineage-"))
+  restored <- readRDS(saved$dataset_path)
+  candidates <- restored$salary_candidates[restored$salary_candidates$nba_id %in% 1641705L, ]
+  stopifnot(nrow(candidates) == 2L,
+            setequal(candidates$source_player_id, c("TEST_FIXTURE_A", "SECOND_TEST_FIXTURE_A")),
+            setequal(candidates$salary_reported_usd, c(15464700, 20000000)))
+})
+
+test("earnings cache identity is bound to the caller during offline replay and refresh", {
+  first <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
+  other <- charToRaw(gsub("1641705", "2544", rawToChar(first), fixed = TRUE))
+  cache <- tempfile("basketball-wrong-player-cache-")
+  source <- acquire_earnings("2544", "TEST_OTHER", cache_dir = cache,
+    transport = function(url) list(bytes = other, response_url = url))
+  misleading <- file.path(cache, sub("earnings-2544-", "earnings-1641705-", basename(source$manifest_path), fixed = TRUE))
+  stopifnot(file.copy(source$manifest_path, misleading))
+  expect_error(acquire_earnings("1641705", "TEST_FIRST", cache_dir = cache, offline = TRUE), "caller request")
+  refresh_path <- file.path(cache, paste0("earnings-1641705-", sha256_bytes(first), ".manifest.json"))
+  stopifnot(file.copy(source$manifest_path, refresh_path))
+  expect_error(acquire_earnings("1641705", "TEST_FIRST", cache_dir = cache, refresh = TRUE,
+    transport = function(url) list(bytes = first, response_url = url)), "caller request")
+})
+
+test("main window eligibility uses total minutes and games without dropping low-exposure constituent seasons", {
+  rules <- prespecified_exposure_rules()
+  view <- make_player_window(synthetic_window_dataset(), "2025-26", 2L, rules$main)
+  stopifnot(identical(view$points$nba_id, "1"), view$points$lebron == 5,
+            view$points$war == 6, view$points$games == 6,
+            "includes_low_exposure_season" %in% view$points$flags[[1]])
+  counts <- eligibility_sensitivity(synthetic_window_dataset(), "2025-26", 2L, rules)
+  stopifnot(identical(counts$eligible_players, c(2L, 1L, 0L)))
 })
 
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))

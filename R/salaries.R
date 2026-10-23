@@ -97,6 +97,9 @@ reconcile_salary_imports <- function(imports = list(), definition_id = NULL) {
   })
   players <- if (length(players)) dplyr::bind_rows(players) else empty
   players <- players[order(players$season, players$nba_id), ]
-  list(players = players, records = records, unmapped = unmapped,
+  source_records <- dplyr::bind_rows(lapply(imports, function(x) x$source_records))
+  list(players = players, records = records, source_records = source_records, unmapped = unmapped,
+       data_origin = if (any(vapply(imports, function(x) identical(x$data_origin, "test_fixture") ||
+         identical(x$provenance$publication_status, "test_only"), logical(1)))) "test_fixture" else "observed",
        provenance = lapply(imports, `[[`, "provenance"), definition_id = definition_id)
 }

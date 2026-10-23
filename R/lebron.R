@@ -42,10 +42,7 @@ normalize_lebron <- function(bytes, seasons) {
   }
   if (anyDuplicated(paste(data$Season, data$nba_id))) stop("Duplicate player-season in LEBRON response", call. = FALSE)
   if (any(data$nba_id > .Machine$integer.max)) stop("NBA ID exceeds supported integer range", call. = FALSE)
-  split_teams <- strsplit(data$team_name, "/", fixed = TRUE)
-  if (any(vapply(split_teams, function(x) any(!grepl("^[A-Z]{3}$", x)) || anyDuplicated(x) > 0L, logical(1)))) {
-    stop("Invalid or duplicate team membership", call. = FALSE)
-  }
+  split_teams <- Map(canonical_team_codes, data$team_name, data$Season)
   players <- tibble::tibble(
     season = data$Season, nba_id = as.integer(data$nba_id),
     bref_id = as.character(data$bref_id), player_name = data$full_nm,
@@ -66,7 +63,8 @@ normalize_lebron <- function(bytes, seasons) {
     membership_type = "season_membership_only"
   )
   teams <- teams[order(teams$season, teams$nba_id, teams$team), ]
-  list(schema_version = LEBRON_SCHEMA_VERSION, players = players, teams = teams)
+  list(schema_version = LEBRON_SCHEMA_VERSION, players = players, teams = teams,
+       data_origin = if (!is.null(parsed$fixture_notice)) "test_fixture" else "observed")
 }
 
 fanspo_transport <- function(request) {
@@ -78,7 +76,7 @@ fanspo_transport <- function(request) {
   httr2::resp_body_raw(response)
 }
 
-read_lebron_snapshot <- function(manifest_path) {
+read_lebron_snapshot <- function(manifest_path, expected_seasons = NULL) {
   meta <- jsonlite::fromJSON(manifest_path, simplifyVector = FALSE)
   required <- c("snapshot_schema", "source_url", "season_type", "requested_seasons", "request",
                 "request_sha256", "response_sha256", "response_file", "retrieved_utc")
@@ -89,6 +87,9 @@ read_lebron_snapshot <- function(manifest_path) {
       !identical(meta$request_sha256, sha256_bytes(json_bytes(meta$request))) ||
       !identical(json_bytes(meta$request), json_bytes(lebron_request(unlist(meta$requested_seasons))))) {
     stop("Snapshot manifest source/request mismatch", call. = FALSE)
+  }
+  if (!is.null(expected_seasons) && !identical(check_seasons(unlist(meta$requested_seasons)), check_seasons(expected_seasons))) {
+    stop("Cached snapshot seasons do not match caller request", call. = FALSE)
   }
   if (!is.character(meta$response_sha256) || length(meta$response_sha256) != 1L ||
       !grepl("^[a-f0-9]{64}$", meta$response_sha256) ||
@@ -119,7 +120,7 @@ acquire_lebron <- function(seasons, cache_dir = "cache/metrics", refresh = FALSE
       if (!is.character(value) || length(value) != 1L || is.na(value)) stop("Invalid snapshot retrieval date", call. = FALSE)
       value
     }, character(1))
-    return(read_lebron_snapshot(available[order(dates, available, decreasing = TRUE)[1]]))
+    return(read_lebron_snapshot(available[order(dates, available, decreasing = TRUE)[1]], expected_seasons = seasons))
   }
   if (offline) stop("No cached LEBRON snapshot for requested seasons", call. = FALSE)
   request <- lebron_request(seasons)
@@ -129,7 +130,7 @@ acquire_lebron <- function(seasons, cache_dir = "cache/metrics", refresh = FALSE
   hash <- sha256_bytes(bytes)
   name <- paste0(prefix, hash)
   manifest_path <- file.path(cache_dir, paste0(name, ".manifest.json"))
-  if (file.exists(manifest_path)) return(read_lebron_snapshot(manifest_path))
+  if (file.exists(manifest_path)) return(read_lebron_snapshot(manifest_path, expected_seasons = seasons))
   meta <- list(snapshot_schema = "lebron-snapshot-v1", source_url = LEBRON_SOURCE_URL,
                requested_seasons = as.list(seasons), season_type = "regular",
                request = request, request_sha256 = sha256_bytes(json_bytes(request)),
@@ -140,5 +141,5 @@ acquire_lebron <- function(seasons, cache_dir = "cache/metrics", refresh = FALSE
                publication_status = "unreviewed")
   write_new_bytes(bytes, file.path(cache_dir, meta$response_file))
   write_new_bytes(json_bytes(meta), manifest_path)
-  read_lebron_snapshot(manifest_path)
+  read_lebron_snapshot(manifest_path, expected_seasons = seasons)
 }

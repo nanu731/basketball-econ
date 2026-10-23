@@ -76,7 +76,7 @@ fanspo_earnings_transport <- function(url) {
   list(bytes = httr2::resp_body_raw(response), response_url = httr2::resp_url(response))
 }
 
-read_earnings_snapshot <- function(manifest_path) {
+read_earnings_snapshot <- function(manifest_path, expected_nba_id = NULL) {
   meta <- jsonlite::fromJSON(manifest_path, simplifyVector = FALSE)
   require_columns(meta, c("snapshot_schema", "nba_id", "source_url", "response_file", "response_sha256", "retrieved_utc"), "Earnings manifest")
   if (!identical(meta$snapshot_schema, "earnings-snapshot-v1") ||
@@ -84,6 +84,9 @@ read_earnings_snapshot <- function(manifest_path) {
       !grepl(paste0("^https://fanspo[.]com/nba/players/[^/]+/", meta$nba_id, "(/earnings)?/?$"), meta$source_url) ||
       !grepl("^[a-f0-9]{64}$", meta$response_sha256) ||
       !identical(basename(meta$response_file), meta$response_file)) stop("Invalid earnings snapshot manifest", call. = FALSE)
+  if (!is.null(expected_nba_id) && !identical(meta$nba_id, as.character(expected_nba_id))) {
+    stop("Cached earnings player does not match caller request", call. = FALSE)
+  }
   path <- file.path(dirname(manifest_path), meta$response_file)
   if (!file.exists(path)) stop("Missing earnings snapshot body", call. = FALSE)
   bytes <- readBin(path, "raw", n = file.info(path)$size)
@@ -102,14 +105,14 @@ acquire_earnings <- function(nba_id, player_name, cache_dir = "cache/earnings", 
   paths <- list.files(cache_dir, pattern = paste0("^", prefix, "[a-f0-9]{64}\\.manifest\\.json$"), full.names = TRUE)
   if (!refresh && length(paths)) {
     dates <- vapply(paths, function(path) jsonlite::fromJSON(path)$retrieved_utc, character(1))
-    return(read_earnings_snapshot(paths[order(dates, paths, decreasing = TRUE)[1]]))
+    return(read_earnings_snapshot(paths[order(dates, paths, decreasing = TRUE)[1]], expected_nba_id = nba_id))
   }
   if (offline) stop("No cached earnings document for NBA ID ", nba_id, call. = FALSE)
   response <- transport(url)
   normalize_earnings(response$bytes, nba_id)
   hash <- sha256_bytes(response$bytes)
   manifest_path <- file.path(cache_dir, paste0(prefix, hash, ".manifest.json"))
-  if (file.exists(manifest_path)) return(read_earnings_snapshot(manifest_path))
+  if (file.exists(manifest_path)) return(read_earnings_snapshot(manifest_path, expected_nba_id = nba_id))
   meta <- list(snapshot_schema = "earnings-snapshot-v1", nba_id = as.character(nba_id),
                source_url = response$response_url, requested_url = url,
                response_file = paste0(prefix, hash, ".html"), response_sha256 = hash,
@@ -117,7 +120,7 @@ acquire_earnings <- function(nba_id, player_name, cache_dir = "cache/earnings", 
                provider_version = NULL, publication_status = "unreviewed")
   write_new_bytes(response$bytes, file.path(cache_dir, meta$response_file))
   write_new_bytes(json_bytes(meta), manifest_path)
-  read_earnings_snapshot(manifest_path)
+  read_earnings_snapshot(manifest_path, expected_nba_id = nba_id)
 }
 
 earnings_salary_import <- function(snapshots, cohort, seasons) {
