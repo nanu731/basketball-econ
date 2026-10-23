@@ -106,6 +106,8 @@ async function mountedScenario() {
         check(reason && q('extra').textContent.split(reason).length === 2, 'Unsupported reason is missing or repeated');
       }
       check(q('contrast-unit').textContent === (metric === 'lebron' ? 'impact points/100 possessions' : view.window > 1 ? 'estimated wins/observed season' : 'estimated wins') && q('contrast-unit').closest('th')?.id === 'mb-scenario-contribution', 'Shared contribution units are missing or wrong');
+      const pairTable = q('extra').querySelector('.mb-scenarios'), lowerBox = q('contrast-lower').getBoundingClientRect(), higherBox = q('contrast-higher').getBoundingClientRect();
+      check(getComputedStyle(pairTable).display === 'table' && Math.abs(lowerBox.width - higherBox.width) < 1 && Math.abs(lowerBox.width + higherBox.width - pairTable.getBoundingClientRect().width) < 2, 'Scenario table lost native full-width equal columns');
       check(Math.abs(q('contrast-lower').getBoundingClientRect().top - q('contrast-higher').getBoundingClientRect().top) < 1 && Math.abs(q('contrast-lowerContribution').getBoundingClientRect().top - q('contrast-higherContribution').getBoundingClientRect().top) < 1, 'Paired salary or contribution values lost shared-row alignment');
     };
     q('extra').open = true; pairedComparison(one, 'war');

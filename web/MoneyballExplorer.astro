@@ -288,9 +288,10 @@ try {
   .moneyball details > p { max-width: 75ch; }
   .mb-extra { max-width: 52rem; padding-bottom: var(--space-s); }
   .moneyball .mb-extra > p { font-size: 1rem; margin-block: var(--space-2xs); }
-  .mb-scenarios { table-layout: fixed; width: 100%; border-block: var(--mb-rule); margin-top: var(--space-xs); }
+  .mb-scenarios { display: table; table-layout: fixed; width: 100%; border-block: var(--mb-rule); margin-block: var(--space-xs); }
   .mb-scenarios th, .mb-scenarios td { min-width: 0; padding: var(--space-xs) var(--space-2xs); border: 0; background: transparent; overflow-wrap: anywhere; }
-  .mb-scenarios th { font: 600 .875rem/1.4 var(--font-body); }
+  .mb-scenarios th { font: 600 .875rem/1.4 var(--font-body); text-transform: none; letter-spacing: normal; }
+  .mb-scenarios tbody tr:nth-child(even) { background: transparent; }
   .mb-scenarios td { font: 1rem/1.4 var(--font-numeric); }
   .mb-scenarios tbody tr:first-child td { padding-top: 0; }
   .mb-scenarios tbody tr:last-child td { padding-top: 0; }
