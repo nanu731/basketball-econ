@@ -480,7 +480,7 @@ export function mountMoneyball(root: HTMLElement): void {
     slider.max = '0'; slider.value = '0'; slider.setAttribute('aria-valuetext', 'Salary comparison unavailable'); txt('count', 'No interactive player records');
     get('example-buttons').replaceChildren(); get('examples').hidden = true;
     get('selected-key').hidden = true; get('peer-key').dataset.hollow = 'false';
-    txt('metric-note', 'Contribution baseline appears after this view loads.'); txt('coverage-summary', '');
+    txt('metric-note', 'Contribution baseline appears after this view loads.'); txt('period', 'Regular seasons · awaiting selected view'); txt('coverage-summary', '');
     txt('coverage', ''); txt('model', ''); txt('view-evidence', 'No interactive view evidence loaded.');
     get('view-sources').replaceChildren(); get('view-source-versions').replaceChildren();
     txt('y-label', 'Contribution · awaiting selected view'); txt('x-label', 'Salary · awaiting selected view');
@@ -544,11 +544,12 @@ export function mountMoneyball(root: HTMLElement): void {
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
     metric.options[0].textContent = warOptionLabel(active.window);
     metric.options[1].textContent = active.window === 1 ? 'Impact when playing · LEBRON' : 'Average impact when playing · LEBRON';
-    txt('metric-note', m === 'war' ? 'WAR zero means replacement-level contribution over playing time.' : 'LEBRON zero means league-average impact per 100 possessions.');
-    txt('coverage-summary', `${active.coverage.matched} matched of ${active.coverage.eligible} eligible player records · ${team.value ? teamName(team.value, active.endSeason) : 'All teams'}. ${bundle?.publication.status === 'private-preview' ? 'Private preview; public data reuse is unresolved.' : 'Reviewed export; source details below.'}`);
+    txt('period', `Regular seasons · ${viewLabel(active)}${active.window > 1 ? ' · averages over observed seasons' : ''}`);
+    txt('metric-note', m === 'war' ? 'Zero: a readily available fill-in player.' : 'Zero: league-average impact.');
+    txt('coverage-summary', `League coverage: ${active.coverage.matched} matched of ${active.coverage.eligible} eligible player records. Filters keep this league denominator fixed.`);
     get('selected-key').hidden = !selected; get('peer-key').dataset.hollow = String(!!selected);
     for (const button of get('example-buttons').querySelectorAll<HTMLButtonElement>('[data-player]')) button.setAttribute('aria-pressed', String(button.dataset.player === selected));
-    txt('y-label', m === 'war' ? active.window > 1 ? 'Estimated wins contributed · average per observed season' : 'Estimated wins contributed · season total' : 'Impact points per 100 possessions');
+    txt('y-label', m === 'war' ? active.window > 1 ? 'Estimated wins · average per observed season' : 'Estimated wins · season total' : 'Impact points per 100 possessions');
     txt('x-label', units.value === 'share' ? 'Salary · % of season cap' : active.window === 1 ? 'Salary · US dollars' : `Average annual salary · ${seasonLabel(active.endSeason)} cap-equivalent dollars`);
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
     if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${active.models[m].name}. ${active.models[m].method} ${active.models[m].validation} ${active.models[m].intervalLabel} ${bundle.publication.note}`);

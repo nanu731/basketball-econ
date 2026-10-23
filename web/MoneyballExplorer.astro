@@ -30,14 +30,12 @@ try {
             <div id="mb-player-suggestions" class="suggestion-menu" data-mb-suggestions role="listbox" aria-label="Matched players in this view" hidden></div>
           </div>
         </div>
-        <label>Contribution<select data-mb-metric><option value="war">Season contribution · WAR</option><option value="lebron">Impact when playing · LEBRON</option></select></label>
+        <label class="mb-metric-control">Contribution<select data-mb-metric><option value="war">Season contribution · WAR</option><option value="lebron">Impact when playing · LEBRON</option></select></label>
         <label>Season ending<select data-mb-season aria-label="Season ending"><option value="">Awaiting data</option></select></label>
+        <label>Time span<select data-mb-window><option value="1">One season</option><option value="3">Three seasons</option><option value="5">Five seasons</option></select></label>
+        <label class="mb-team-control">Team membership<select data-mb-team><option value="">All teams</option></select></label>
       </div>
       <p class="mb-small mb-search-help" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result>Type at least two characters. Accents and punctuation are optional.</p>
-      <div class="mb-context-controls">
-          <label>Team membership<select data-mb-team><option value="">All teams</option></select></label>
-          <label>Window<select data-mb-window><option value="1">One season</option><option value="3">Three seasons</option><option value="5">Five seasons</option></select></label>
-      </div>
       <details class="mb-filters">
         <summary>Salary units and reset</summary>
         <div class="mb-secondary">
@@ -48,16 +46,13 @@ try {
       </details>
     </fieldset>
   </form>
-  <p class="mb-small mb-note" data-mb-window-note>One dot compares the same player's matched salary and contribution. Controls become available after the selected view passes validation.</p>
-  <p class="mb-small mb-note" data-mb-coverage-summary></p>
-  <div class="mb-examples" data-mb-examples hidden><span>Try a player:</span><div data-mb-example-buttons></div></div>
   <figure aria-labelledby="mb-chart-title" aria-describedby="mb-chart-guide mb-caption">
     <h2 id="mb-chart-title" class="mb-sr">Explore player value</h2>
     <p id="mb-chart-guide" class="mb-guide"><strong>Above the line:</strong> more contribution than the line estimates at that salary. <strong>Below:</strong> less.</p>
-    <div class="mb-chart-tools"><p class="mb-small" data-mb-metric-note>WAR zero means replacement-level contribution over playing time.</p><button type="button" data-mb-find-player disabled>Find a player</button></div>
+    <div class="mb-chart-tools"><p class="mb-small" data-mb-period>Regular season · awaiting data</p><button type="button" data-mb-find-player disabled>Find a player</button></div>
     <div class="mb-chart-layout">
       <div class="mb-plot">
-        <p class="mb-axis mb-y"><span data-mb-war-help><DefinitionHelp id="mb-war" label="WAR">LEBRON WAR estimates wins above a replacement-level player: a readily available fill-in player. Zero is that replacement baseline. It adds estimated contribution over playing time, including availability; it is not the team's actual wins.</DefinitionHelp></span><span data-mb-lebron-help hidden><DefinitionHelp id="mb-lebron" label="LEBRON">LEBRON names an impact statistic, rather than the player LeBron James. It estimates on-court impact in points per 100 possessions, not points actually scored. A possession is a team's turn with the ball; per 100 puts players on the same rate scale. Zero means league-average impact. The rate does not represent a season-long total.</DefinitionHelp></span><span data-mb-y-label>Estimated wins contributed · season total</span></p>
+        <p class="mb-axis mb-y"><span data-mb-war-help><DefinitionHelp id="mb-war" label="WAR">LEBRON WAR estimates wins above a replacement-level player: a readily available fill-in player. Zero is that replacement baseline. It adds estimated contribution over playing time, including availability; it is not the team's actual wins.</DefinitionHelp></span><span data-mb-lebron-help hidden><DefinitionHelp id="mb-lebron" label="LEBRON">LEBRON names an impact statistic, rather than the player LeBron James. It estimates on-court impact in points per 100 possessions, not points actually scored. A possession is a team's turn with the ball; per 100 puts players on the same rate scale. Zero means league-average impact. The rate does not represent a season-long total.</DefinitionHelp></span><span data-mb-y-label>Estimated wins · season total</span><span data-mb-metric-note>Zero: a readily available fill-in player.</span></p>
         <div class="mb-stage">
           <svg role="img" data-mb-chart aria-label="Salary and measured contribution" viewBox="0 0 300 420"><title>No interactive records loaded</title></svg>
           <div class="mb-empty" data-mb-empty><h3>Player comparisons unavailable</h3><p>Verified, matched records are required before dots or a league reference can appear.</p><button type="button" data-mb-retry>Retry data</button></div>
@@ -67,6 +62,7 @@ try {
       <section class="mb-selection" aria-label="Selected player">
         <h3 data-mb-selection-name aria-live="polite" hidden>Player comparison</h3>
         <p data-mb-selection>Search for a player or select a dot.</p>
+
         <div data-mb-comparison hidden>
           <dl class="mb-comparison">
             <div><dt>Measured contribution</dt><dd data-mb-selected-contribution></dd></div>
@@ -81,7 +77,10 @@ try {
           <p class="mb-small">Higher means a larger contribution gap for the pay. This ranks the gap, not talent or return per dollar.</p>
           <details class="mb-player-details"><summary>Playing time and records</summary><p class="mb-small" data-mb-selected-details></p></details>
         </div>
+        <div class="mb-examples" data-mb-examples hidden><span>Try a player:</span><div data-mb-example-buttons></div></div>
       </section>
+  <p class="mb-small mb-note" data-mb-window-note>One dot compares the same player's matched salary and contribution. Controls become available after the selected view passes validation.</p>
+  <p class="mb-small mb-note" data-mb-coverage-summary></p>
     </div>
     <div class="mb-legend" aria-label="Chart legend"><span><i class="mb-dot-key" data-mb-peer-key aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span data-mb-selected-key hidden><i class="mb-selected-key" aria-hidden="true"></i>Selected player</span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">A line fitted to the league's eligible matched records. It compares estimated contribution at different salaries. A player's above/below value is the vertical contribution gap from this line at that player's pay. Filters never refit it.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Range for the reference">The shaded band shows where the fitted league line might sit, treating the provider's player scores as fixed. It does not show uncertainty about an individual player's impact. Technical interval details are in the model notes.</DefinitionHelp></span></div>
     <figcaption id="mb-caption">The league reference stays fixed under filters. Salary comparisons do not establish cause. Underlined terms open definitions.</figcaption>
@@ -172,8 +171,7 @@ try {
   .mb-small, figcaption { font-size: var(--type-small); line-height: 1.5; }
   .mb-heading .mb-small { max-width: 65ch; }
   .mb-controls { border: 0; border-top: var(--mb-rule); margin: 0; padding: 0; min-width: 0; }
-  .mb-primary { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-s); padding-block: var(--space-xs); }
-  .mb-context-controls { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-s); padding-bottom: var(--space-xs); }
+  .mb-primary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.7fr) minmax(0, .75fr) minmax(0, .8fr) minmax(0, 1.2fr); gap: var(--space-s); padding-block: var(--space-xs); }
   .mb-secondary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xs) var(--space-s); padding-block: var(--space-xs); }
   .moneyball .mb-filters { margin: 0; border-top: var(--mb-rule); }
   .moneyball .mb-filters > summary { font: 1rem/1.4 var(--font-body); min-height: 44px; padding-block: var(--space-xs); }
@@ -197,9 +195,9 @@ try {
   .moneyball :focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
   .mb-controls:disabled { opacity: .7; }
   .mb-secondary > button { align-self: end; font-size: var(--type-small); }
-  .mb-note { margin-block: var(--space-xs); max-width: 100%; }
+  .moneyball .mb-note { margin: var(--space-xs); max-width: 90ch; }
   .mb-chart-layout { border-block: 2px solid var(--green); }
-  .mb-plot { min-width: 0; background: var(--cream); padding: var(--space-s) var(--space-xs) var(--space-xs); }
+  .mb-plot { min-width: 0; background: var(--cream); padding: var(--space-xs); }
   .mb-y { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2xs); }
   .moneyball .mb-y :global(.definition-trigger) { font-family: var(--font-numeric); min-inline-size: 44px; }
   .moneyball :global(svg .mb-selected-name) { font-weight: 600; }
@@ -224,10 +222,11 @@ try {
   .mb-empty p { max-width: 35ch; font-size: 1rem; margin: 0 0 var(--space-s); }
   .mb-empty[hidden], [hidden] { display: none !important; }
   .mb-selection { padding: var(--space-s) var(--space-xs); border-top: var(--mb-rule); }
-  .mb-selection h3 { font-size: 1.25rem; line-height: 1.2; margin: 0 0 var(--space-2xs); }
+  .mb-selection h3 { font-size: 1.5rem; line-height: 1.2; margin: 0 0 var(--space-2xs); }
   .mb-selection > p { font-size: 1rem; margin: 0; }
   .mb-selection > .mb-small { font-size: var(--type-small); line-height: 1.35; margin: var(--space-2xs) 0 0; }
   .mb-comparison { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-s); margin: 0; }
+  .mb-comparison:not(.mb-pay-rank) dd { font-size: 1.25rem; font-weight: 600; }
   .mb-pay-rank { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--space-xs); }
   .mb-comparison dt { min-height: 44px; display: flex; align-items: center; font-size: var(--type-small); line-height: 1.25; }
   .mb-comparison dd { margin: var(--space-3xs) 0 0; font-family: var(--font-numeric); font-size: 1rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
@@ -243,11 +242,14 @@ try {
   .mb-dot-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
   .mb-dot-key[data-hollow=true] { background: var(--cream); border: 1px solid var(--green); }
   .mb-selected-key { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid var(--green); }
-  .mb-chart-tools { display: flex; justify-content: space-between; align-items: center; gap: var(--space-s); margin-bottom: var(--space-xs); }
+  .mb-chart-tools { display: flex; justify-content: space-between; align-items: center; gap: var(--space-s); margin-block: var(--space-2xs); }
   .moneyball .mb-chart-tools p { margin: 0; max-width: 65ch; }
   .mb-chart-tools button { flex-shrink: 0; font-size: var(--type-small); }
   .mb-examples, .mb-examples > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
   .mb-examples { margin-block: var(--space-xs); font-size: var(--type-small); }
+  .mb-examples :global(button) { box-sizing: border-box; min-height: 44px; padding: var(--space-2xs) var(--space-xs); border: var(--mb-rule); border-radius: 0; background: var(--cream); color: var(--green); font: inherit; cursor: pointer; touch-action: manipulation; }
+  .mb-examples :global(button:hover) { background: var(--sand); }
+  .mb-examples :global(button:focus-visible) { outline: 3px solid var(--green); outline-offset: 3px; }
   .mb-examples :global(button[aria-pressed=true]) { background: var(--green); color: var(--cream); }
   .mb-line-key { width: 24px; border-top: 3px solid var(--green); }
   .mb-band-key { width: 24px; height: 12px; background: var(--sand); border: 1px solid var(--green); }
@@ -287,7 +289,7 @@ try {
   .moneyball .mb-source-versions > summary { min-height: 44px; padding-block: var(--space-3xs); font: var(--type-small)/1.4 var(--font-body); }
   .mb-source-versions :global(code), [data-mb-view-evidence] { overflow-wrap: anywhere; }
   .mb-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  @media (max-width: 60rem) { .mb-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-search { grid-column: 1 / -1; } }
-  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xs); align-items: center; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-context-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-xs); } .mb-primary { grid-template-columns: 1fr; } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
+  @media (max-width: 70rem) { .mb-primary { grid-template-columns: repeat(6, minmax(0, 1fr)); } .mb-primary > label { grid-column: span 2; } .mb-search, .mb-primary > .mb-metric-control { grid-column: span 3; } }
+  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xs); align-items: center; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-primary > label { grid-column: auto; } .mb-search, .mb-primary > .mb-metric-control, .mb-primary > .mb-team-control { grid-column: 1 / -1; } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media print { .mb-controls, .mb-extra, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

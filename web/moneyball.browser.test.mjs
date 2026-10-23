@@ -47,11 +47,24 @@ async function mountedScenario() {
     const peer = common.find(p => p.id !== player?.id); check(player && peer, 'Actual comparison players missing');
     // Real exports include every player salary as a knot; between-knot interpolation has a separate unit regression.
     await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Mount did not finish');
+    await document.fonts.ready;
     const baseline = reference(); check(dots().length === one.players.length, 'Initial cohort count differs');
+    const chartTop = q('chart').getBoundingClientRect().top + scrollY;
+    check(chartTop - (root.getBoundingClientRect().top + scrollY) < Math.min(650, innerHeight * .8), 'Default graph remains too far below controls');
+    if (innerWidth >= 1100) check(chartTop < innerHeight * .75, 'Desktop first graph remains too far below the fold');
+    check(document.documentElement.scrollWidth <= innerWidth + 1, 'Default page overflows horizontally');
+    const readableMetric = () => {
+      const select = q('metric'), canvas = document.createElement('canvas'), context = canvas.getContext('2d'); context.font = getComputedStyle(select).font;
+      check(select.clientWidth >= context.measureText(select.selectedOptions[0].textContent).width + 26, 'Active long metric label is clipped');
+    };
+    readableMetric();
+    check(q('period').textContent.includes('Regular seasons') && q('metric-note').textContent.includes('fill-in'), 'Season scope or plain zero baseline missing');
     check(!q('team').closest('details') && !q('window').closest('details') && !q('window-note').closest('details'), 'Team/window context stayed collapsed');
     const examples = [...q('example-buttons').querySelectorAll('button')];
     check(examples.length > 0 && examples.length <= 3 && !q('chart').querySelector('.mb-selected'), 'Examples missing or auto-selected');
     check(examples.every(b => one.players.some(p => p.id === b.dataset.player && p.label)), 'Example was not an eligible labeled player');
+    check(q('examples').closest('.mb-selection'), 'Examples compete with the pre-chart hierarchy');
+    check(examples.every(b => b.getBoundingClientRect().height >= 44 && getComputedStyle(b).fontFamily === getComputedStyle(q('examples')).fontFamily && getComputedStyle(b).borderTopStyle === 'solid'), 'Example buttons lost house styling or 44px targets');
     examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
     const beforeShortcut = q('search').value; q('find-player').click();
     check(document.activeElement === q('search') && q('search').value === beforeShortcut && root.querySelectorAll('input[type=search]').length === 1, 'Find shortcut lost continuity or duplicated search');
@@ -71,6 +84,7 @@ async function mountedScenario() {
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
     check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank} / 100`, 'Team filter changed cohort reference/rank');
     check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
+    check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
     check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed');
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
     check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing');
@@ -80,6 +94,7 @@ async function mountedScenario() {
     const multiPlayer = multi.players.find(p => p.id === player.id);
     check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + ' / 100', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
+    readableMetric(); check(q('period').textContent.includes('averages over observed seasons') && !q('window-note').closest('details'), 'Average context was hidden');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); change('window', '5');
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(fields.every(f => q(`contrast-${f}`).textContent === ''), 'A contrast field stayed stale');
@@ -129,7 +144,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   });
   await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });
   const executable = process.env.MONEYBALL_CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  browser = promisify(execFile)(executable, ['--headless', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, '--dump-dom', '--virtual-time-budget=10000', `http://127.0.0.1:${server.address().port}${page}`], { timeout: 45000, maxBuffer: 8 * 1024 * 1024, signal: t.signal });
+  browser = promisify(execFile)(executable, ['--headless', '--window-size=1440,1000', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, '--dump-dom', '--virtual-time-budget=10000', `http://127.0.0.1:${server.address().port}${page}`], { timeout: 45000, maxBuffer: 8 * 1024 * 1024, signal: t.signal });
   const { stdout, stderr } = await browser;
   const result = stdout.match(/data-moneyball-test="([^"]*)"/)?.[1], error = stdout.match(/data-moneyball-error="([^"]*)"/)?.[1];
   assert.equal(result, 'passed', error ? decodeURIComponent(error) : `Mounted test did not finish. ${stderr.slice(-2000)}`);
