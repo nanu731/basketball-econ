@@ -610,7 +610,7 @@ export function mountMoneyball(root: HTMLElement): void {
     if (records.open) renderTable();
     else if (table.childElementCount) table.replaceChildren();
     txt('table-cost', units.value === 'share' ? 'Compensation (% cap)' : active.window === 1 ? 'Compensation (USD)' : 'Avg compensation (end-cap USD)');
-    txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`); txt('table-percentile', `Value for pay percentile (${m.toUpperCase()})`);
+    txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`); txt('table-percentile', `Value for pay percentile (${m.toUpperCase()})`); txt('table-gap', `Gap size (${m.toUpperCase()}) · × median absolute league gap`);
     const p = active.players.find(p => p.id === selected);
     txt('selection-name', p?.name ?? 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {

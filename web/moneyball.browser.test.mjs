@@ -119,6 +119,7 @@ async function mountedScenario() {
       const scale = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2, ratio = chosen.residual[metric] / scale;
       const magnitude = Math.abs(ratio), formatted = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? String(Number(magnitude.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(magnitude);
       check(q('selected-magnitude').textContent.startsWith(`${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${formatted} × median absolute league gap`), 'Selected magnitude differs from the full league cohort');
+      check(q('table-gap').textContent.includes(`(${metric.toUpperCase()})`), 'Live table gap-size metric stayed stale');
       check(q('selected-scale').textContent.includes(String(Number(scale.toPrecision(6)))) && q('selected-scale').textContent.includes(`${view.players.length} matched players`), 'Native scale/full cohort context missing');
     };
     choose(player); connector(); gapSize(player, 'war', one);
