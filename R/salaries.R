@@ -56,7 +56,9 @@ read_salary_import <- function(csv_path, metadata_path) {
   records <- records[order(records$season, records$nba_id, records$source_player_id, na.last = TRUE), ]
   meta$csv_sha256 <- sha256_bytes(raw)
   meta$metadata_sha256 <- sha256_bytes(readBin(metadata_path, "raw", n = file.info(metadata_path)$size))
-  list(records = records, provenance = meta)
+  list(records = records, provenance = meta,
+       data_origin = if (meta$publication_status == "test_only") "test_fixture" else
+         if (identical(meta$data_origin, "observed")) "observed" else "unverified")
 }
 
 reconcile_salary_imports <- function(imports = list(), definition_id = NULL) {
@@ -100,6 +102,7 @@ reconcile_salary_imports <- function(imports = list(), definition_id = NULL) {
   source_records <- dplyr::bind_rows(lapply(imports, function(x) x$source_records))
   list(players = players, records = records, source_records = source_records, unmapped = unmapped,
        data_origin = if (any(vapply(imports, function(x) identical(x$data_origin, "test_fixture") ||
-         identical(x$provenance$publication_status, "test_only"), logical(1)))) "test_fixture" else "observed",
+         identical(x$provenance$publication_status, "test_only"), logical(1)))) "test_fixture" else
+           if (all(vapply(imports, function(x) identical(x$data_origin, "observed"), logical(1)))) "observed" else "unverified",
        provenance = lapply(imports, `[[`, "provenance"), definition_id = definition_id)
 }

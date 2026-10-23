@@ -384,4 +384,24 @@ test("team filtering preserves the full league reference and support counts", {
             identical(filtered$window$coverage, analysis$window$coverage))
 })
 
+test("browser export matches the visible reference, splits views and refuses synthetic writes", {
+  analysis <- analyze_player_window(synthetic_analysis_window(), sentinel = FALSE,
+    cache_dir = tempfile("basketball-export-test-"), influence = FALSE)
+  expect_error(build_browser_exports(list(analysis)), "Test fixtures")
+  exports <- build_browser_exports(list(analysis), allow_test_fixture = TRUE)
+  bundle <- jsonlite::fromJSON(rawToChar(json_bytes(exports$view_bundles[[1]])), simplifyVector = FALSE)
+  view <- bundle$views[[1]]
+  stopifnot(exports$index$schemaVersion == "moneyball.index.v1", length(bundle$views) == 1L,
+            exports$index$views[[1]]$url == "/data/moneyball/v1/views/2026-1.json",
+            length(view$players) == 80L, is.list(view$players[[1]]$teams),
+            abs(view$players[[1]]$residual$war) < 1e-8)
+  text <- rawToChar(json_bytes(bundle))
+  stopifnot(!grepl("salary_candidates|source_player_id|private_use_basis|salary_source_records", text))
+  expect_error(write_private_browser_exports(exports, tempfile("basketball-denied-export-")), "synthetic or unverified")
+  exports$data_origin <- "observed"
+  expect_error(write_private_browser_exports(exports, tempfile("basketball-forged-origin-")), "Fixture content")
+  analysis$window$data_origin <- NULL
+  expect_error(build_browser_exports(list(analysis)), "explicit observed data origin")
+})
+
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))

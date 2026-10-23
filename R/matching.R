@@ -43,7 +43,8 @@ match_player_seasons <- function(metrics, salaries, caps = official_caps()) {
   salary_only <- dplyr::anti_join(salaries$players, metrics$players[, c("season", "nba_id")], by = c("season", "nba_id"))
   list(schema_version = "matched-player-seasons-v1", players = rows, teams = metrics$teams,
        data_origin = if (identical(metrics$data_origin, "test_fixture") || identical(salaries$data_origin, "test_fixture") ||
-         any(vapply(salaries$provenance, function(x) identical(x$publication_status, "test_only"), logical(1)))) "test_fixture" else "observed",
+         any(vapply(salaries$provenance, function(x) identical(x$publication_status, "test_only"), logical(1)))) "test_fixture" else
+           if (identical(metrics$data_origin, "observed") && (identical(salaries$data_origin, "observed") || !nrow(salaries$players))) "observed" else "unverified",
        coverage = coverage, salary_only = salary_only, unmapped_salaries = salaries$unmapped,
        salary_candidates = salaries$records, salary_source_records = salaries$source_records,
        source_provenance = list(metrics = metrics$provenance, salaries = salaries$provenance,

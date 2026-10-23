@@ -81,6 +81,13 @@ make_player_window <- function(dataset, end_season, window_length, exposure_rule
   included_total <- sum(active$salary_cap_share[eligible_rows], na.rm = TRUE)
   coverage <- list(source_player_seasons = nrow(selected), active_player_seasons = nrow(active),
                    observed_active_players = length(groups), eligible_players = nrow(points),
+                   exposure_eligible_before_salary = sum(vapply(groups, function(i) {
+                     r <- active[i, ]
+                     !anyNA(r$minutes) && !anyNA(r$games) && !anyNA(r$provider_possessions) &&
+                       !anyNA(r$lebron) && !anyNA(r$war) && all(r$provider_possessions > 0) &&
+                       sum(r$minutes) >= exposure_rule$minimum_minutes && sum(r$games) >= exposure_rule$minimum_games &&
+                       sum(r$provider_possessions) >= exposure_rule$minimum_possessions
+                   }, logical(1))),
                    excluded_players = nrow(excluded), eligible_player_seasons = sum(eligible_rows),
                    missing_salary_player_seasons = sum(!known),
                    included_known_salary_usd = included_total * reference_cap / window_length,
@@ -134,12 +141,14 @@ summarize_attributable_teams <- function(window) {
     selected[is.na(selected)] <- FALSE
     available <- any(selected)
     tibble::tibble(team = team, attributable_player_seasons = sum(selected),
+                   eligible_player_seasons = sum(membership & rows$in_player_sample),
                    attributable_seasons = length(unique(rows$season[selected])),
                    selected_window_length = window$window_length,
                    reported_salary_average_annual_reference_usd = if (available) sum(rows$salary_cap_share[selected]) * window$reference_cap_usd / window$window_length else NA_real_,
                    war_average_annual = if (available) sum(rows$war[selected]) / window$window_length else NA_real_,
                    excluded_trade_player_seasons = sum(membership & rows$team_count > 1L),
                    excluded_ineligible_player_seasons = sum(membership & !rows$in_player_sample),
+                   excluded_missing_player_seasons = sum(membership & (is.na(rows$salary_reported_usd) | is.na(rows$lebron) | is.na(rows$war))),
                    excluded_unknown_attribution_player_seasons = sum(membership & rows$in_player_sample & rows$team_count == 1L & !supported),
                    status = if (available) "attributable_sample_only" else "no_verified_attribution")
   }))
