@@ -352,10 +352,6 @@ export function readableReason(reason: string | null): string {
   const words = reason.replace(/[_-]+/g, ' ').trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
-export function initialContrastIndex(curve: Knot[]): number {
-  const supported = curve.flatMap((k, i) => k.extraMillion.supported ? [i] : []);
-  return supported.length ? supported[Math.floor((supported.length - 1) / 2)] : 0;
-}
 /** Regular, readable ticks within the unchanged full-sample domain. */
 export function niceTicks(min: number, max: number, count = 5): number[] {
   const rawStep = (max - min) / Math.max(1, count - 1);
@@ -378,31 +374,26 @@ export function salaryTicks(min: number, max: number, cap: number, units: string
   }));
 }
 
-/** Presentation only: use the exported paired difference and support decision. */
-export function salaryComparison(view: View, metric: Metric, knot: Knot) {
-  const start = knot.x * view.referenceCapUsd, end = start + 1e6, result = knot.extraMillion;
-  const model = view.models[metric];
+/** Summarize only an explicitly straight-line reference using a saved supported contrast. */
+export function millionSummary(view: View, metric: Metric) {
+  const model = view.models[metric], knot = model.curve.find(k => k.extraMillion.supported);
   const unit = metric === 'war' ? view.window > 1 ? 'estimated wins/observed season' : 'estimated wins' : 'impact points/100 possessions';
-  const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${decimal(Math.abs(value))}`;
-  const unavailable = 'Unavailable';
-  // Endpoint values follow the visible interpolant; the exported joint contrast remains authoritative.
-  const lower = result.supported ? interpolate(model.curve, knot.x) : null;
-  const higher = result.supported ? interpolate(model.curve, knot.x + 1e6 / view.referenceCapUsd) : null;
-  const difference = result.supported ? `${signed(num(result.estimate))} ${unit}` : `Comparison unavailable. ${readableReason(result.reason)}`;
+  const pay = view.window === 1 ? 'annual salary' : `average annual pay in ${seasonLabel(view.endSeason)} cap-equivalent dollars`;
+  const context = `${viewLabel(view)} · ${metric.toUpperCase()} · ${pay} (US dollars). ${model.name}.${model.name !== 'Straight line' ? ' This is a local comparison; a single constant step is not assumed.' : ''}`;
+  const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${gapNumber(value)}`;
+  if (!knot) return {
+    summary: `The $1 million comparison is unavailable in this view: ${readableReason(model.curve[0].extraMillion.reason)}`,
+    context, anchor: 'Unavailable', difference: 'Unavailable', range: 'Unavailable', support: 'Unavailable', precision: 'Unavailable',
+  };
+  const result = knot.extraMillion, difference = `${signed(num(result.estimate))} ${unit}`;
   return {
-    start: preciseSalaryFormatter.format(start),
-    lower: preciseSalaryFormatter.format(start), higher: preciseSalaryFormatter.format(end),
-    unit,
-    lowerContribution: lower === null ? unavailable : `About ${decimal(lower)}`,
-    higherContribution: higher === null ? unavailable : `About ${decimal(higher)}`,
+    summary: model.name === 'Straight line' ? `In ${viewLabel(view)}, $1 million more in ${pay} corresponds to about ${difference} on the fitted league line; this association does not predict the effect of a raise.` : 'This view does not use a straight-line reference, so a single $1 million association is not summarized.',
+    context,
+    anchor: `${preciseSalaryFormatter.format(knot.x * view.referenceCapUsd)} → ${preciseSalaryFormatter.format(knot.x * view.referenceCapUsd + 1e6)}`,
     difference,
-    context: `${viewLabel(view)} · ${metric.toUpperCase()} · ${view.window === 1 ? 'Season salary in US dollars' : `Average annual salary in ${seasonLabel(view.endSeason)} cap-equivalent dollars`}`,
-    range: result.supported ? result.low !== null ? `${signed(result.low)} to ${signed(result.high!)} ${unit}` : 'Unavailable' : unavailable,
+    range: result.low === null ? 'Unavailable' : `${signed(result.low)} to ${signed(result.high!)} ${unit}`,
     support: `${result.nStart} near the lower salary; ${result.nEnd} near the higher salary`,
-    shape: model.name === 'Straight line' ? 'The estimated step is the same at every supported salary because the fitted relationship is a straight line.' : 'Choose another lower salary to compare two points on the same league reference.',
-    unitNote: metric === 'war' ? 'WAR estimates wins above a readily available fill-in player, not the team’s actual wins.' : 'LEBRON estimates impact relative to league average per 100 possessions, not points actually scored.',
-    precision: result.supported ? `${model.name}. Lower estimate: ${lower}; higher estimate: ${higher}; exported difference: ${result.estimate}; joint range: ${result.low === null ? 'unavailable' : `${result.low} to ${result.high}`}.` : unavailable,
-    aria: `Lower salary ${preciseSalaryFormatter.format(start)}, higher salary ${preciseSalaryFormatter.format(end)}; ${difference}`,
+    precision: `Exported difference: ${result.estimate}; joint range: ${result.low === null ? 'unavailable' : `${result.low} to ${result.high}`}.`,
   };
 }
 
@@ -457,7 +448,7 @@ export function mountMoneyball(root: HTMLElement): void {
   const search = get<HTMLInputElement>('search'), team = get<HTMLSelectElement>('team');
   const searchShell = get('search-shell'), suggestions = get('suggestions'), suggestionModel = createPlayerSuggestions();
   const chart = get<SVGSVGElement & HTMLElement>('chart');
-  const table = get<HTMLTableSectionElement>('rows'), slider = get<HTMLInputElement>('spending');
+  const table = get<HTMLTableSectionElement>('rows');
   const records = get<HTMLDetailsElement>('live-table');
   let tableDirty = true;
   let index: ViewIndex | null = null, bundle: Bundle | null = null, active: View | null = null, selected = '', request = 0;
@@ -470,7 +461,7 @@ export function mountMoneyball(root: HTMLElement): void {
   const option = (value: string, label: string) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
   function setControls(ready: boolean) {
     controls.disabled = !index; get<HTMLButtonElement>('reset').disabled = !index;
-    for (const el of [metric, units, search, team, slider, get<HTMLButtonElement>('find-player')]) el.disabled = !ready;
+    for (const el of [metric, units, search, team, get<HTMLButtonElement>('find-player')]) el.disabled = !ready;
   }
   function renderSuggestions(scroll = false) {
     const state = suggestionModel.state;
@@ -522,9 +513,9 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('search-result', 'Player suggestions will return after this view loads.');
     txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
     for (const key of ['selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-magnitude', 'selected-scale', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
-    txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Salary comparison unavailable.');
-    for (const key of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision']) txt(`contrast-${key}`, '');
-    slider.max = '0'; slider.value = '0'; slider.setAttribute('aria-valuetext', 'Salary comparison unavailable'); txt('count', 'No interactive player records');
+    txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.');
+    for (const field of ['summary', 'context', 'anchor', 'difference', 'range', 'support', 'precision']) txt(`million-${field}`, '');
+    txt('count', 'No interactive player records');
     get('example-buttons').replaceChildren(); get('examples').hidden = true;
     get('selected-key').hidden = true; get('peer-key').dataset.hollow = 'false';
     txt('metric-note', 'Contribution baseline appears after this view loads.'); txt('period', 'Regular seasons · awaiting selected view'); txt('coverage-summary', '');
@@ -576,7 +567,6 @@ export function mountMoneyball(root: HTMLElement): void {
       team.value = [...team.options].some(o => o.value === previousTeam) ? previousTeam : '';
       const retained = active.players.find(p => p.id === selected && (!team.value || p.teams.includes(team.value)));
       selected = retained?.id ?? ''; search.value = retained?.name ?? '';
-      resetContrast();
       txt('window-note', active.window === 1 ? `${viewLabel(active)}. Each dot is one matched player-season. Dollars are nominal annual compensation.` : `${viewLabel(active)}. Each dot averages the matched active seasons shown for that player. Pay is adjusted to the ${seasonLabel(active.endSeason)} salary cap; WAR is average annual contribution. LEBRON is a playing-time-weighted rate.`);
       txt('coverage', `${active.coverage.matched} matched salary records among ${active.coverage.eligible} player records meeting playing-time and contribution-metric rules. ${salaryCoverage(active)}${active.coverage.excluded.length ? ` Primary exclusion reasons: ${active.coverage.excluded.map(e => `${e.count}: ${readableReason(e.reason)}`).join('; ')}` : ''}`);
       renderExamples(); render();
@@ -619,7 +609,7 @@ export function mountMoneyball(root: HTMLElement): void {
       for (const field of ['salary', 'contribution', 'reference', 'gap', 'percentile', 'magnitude', 'scale', 'cohort', 'observed', 'details'] as const) txt(`selected-${field}`, copy[field]);
       get('selected-observed').hidden = active.window === 1;
     } else { txt('selection', 'Search for a player or select a dot.'); txt('selected-magnitude', ''); txt('selected-scale', ''); }
-    draw(); contrastReadout();
+    draw(); millionReadout();
   }
   function renderExamples() {
     const players = active ? examplePlayers(active, team.value) : [];
@@ -679,24 +669,15 @@ export function mountMoneyball(root: HTMLElement): void {
     }
     chart.replaceChildren(...children);
   }
-  function resetContrast() {
+  function millionReadout() {
     if (!active) return;
-    const curve = active.models[metric.value as Metric].curve;
-    slider.max = String(curve.length - 1); slider.value = String(initialContrastIndex(curve));
-  }
-  function contrastReadout() {
-    if (!active) return;
-    const curve = active.models[metric.value as Metric].curve;
-    const knot = curve[Math.min(Number(slider.value), curve.length - 1)];
-    const copy = salaryComparison(active, metric.value as Metric, knot);
-    slider.setAttribute('aria-valuetext', `${copy.aria}. ${copy.context}.`);
-    txt('contrast-readout', copy.difference);
-    for (const field of ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'] as const) txt(`contrast-${field}`, copy[field]);
+    const copy = millionSummary(active, metric.value as Metric);
+    for (const field of ['summary', 'context', 'anchor', 'difference', 'range', 'support', 'precision'] as const) txt(`million-${field}`, copy[field]);
   }
   root.querySelector('form')?.addEventListener('submit', e => e.preventDefault());
   get('retry').addEventListener('click', () => { void (index ? changeView() : loadIndex()); });
   season.addEventListener('change', changeView); windowSelect.addEventListener('change', changeView);
-  metric.addEventListener('change', () => { closeSuggestions(); resetContrast(); render(); });
+  metric.addEventListener('change', () => { closeSuggestions(); render(); });
   units.addEventListener('change', () => { closeSuggestions(); render(); });
   team.addEventListener('change', () => {
     closeSuggestions();
@@ -732,7 +713,6 @@ export function mountMoneyball(root: HTMLElement): void {
   searchShell.addEventListener('focusout', event => {
     if (event.relatedTarget instanceof Node && !searchShell.contains(event.relatedTarget)) { closeSuggestions(); if (active) searchStatus(); }
   });
-  slider.addEventListener('input', contrastReadout);
   records.addEventListener('toggle', () => { if (records.open) renderTable(); });
   const choose = (e: Event) => {
     const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-player]') : null;

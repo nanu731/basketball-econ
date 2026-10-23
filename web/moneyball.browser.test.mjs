@@ -20,7 +20,7 @@ async function mountedScenario() {
   const change = (key, value) => { q(key).value = value; q(key).dispatchEvent(new Event('change', { bubbles: true })); };
   const dots = () => [...q('chart').querySelectorAll('circle[data-player]')];
   const reference = () => q('chart').querySelector('.mb-reference')?.getAttribute('d');
-  const fields = ['start', 'lower', 'higher', 'lowerContribution', 'higherContribution', 'unit', 'context', 'range', 'support', 'shape', 'unitNote', 'precision'];
+  const fields = ['summary', 'context', 'anchor', 'difference', 'range', 'support', 'precision'];
   const choose = player => {
     q('search').value = player.name; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     const option = [...q('suggestions').querySelectorAll('[data-suggestion-index]')].find(el => el.textContent === player.name);
@@ -46,7 +46,7 @@ async function mountedScenario() {
     const player = common.find(p => p.id === '203999') ?? common.find(p => !p.teams.includes('NYK'));
     const peer = common.find(p => p.id !== player?.id); check(player && peer, 'Actual comparison players missing');
     // Real exports include every player salary as a knot; between-knot interpolation has a separate unit regression.
-    await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Mount did not finish');
+    await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Mount did not finish');
     await document.fonts.ready;
     const baseline = reference(); check(dots().length === one.players.length, 'Initial cohort count differs');
     const chartTop = q('chart').getBoundingClientRect().top + scrollY;
@@ -88,32 +88,19 @@ async function mountedScenario() {
     examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
     const beforeShortcut = q('search').value; q('find-player').click();
     check(document.activeElement === q('search') && q('search').value === beforeShortcut && root.querySelectorAll('input[type=search]').length === 1, 'Find shortcut lost continuity or duplicated search');
-    const pairedComparison = (view, metric) => {
-      const knot = view.models[metric].curve[Number(q('spending').value)], result = knot.extraMillion;
+    const association = (view, metric) => {
+      const knot = view.models[metric].curve.find(k => k.extraMillion.supported), result = knot.extraMillion;
       const currency = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v);
-      const dec = v => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-      const signed = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${dec(Math.abs(v))}`;
-      check(q('contrast-lower').textContent === currency(knot.x * view.referenceCapUsd) && q('contrast-higher').textContent === currency(knot.x * view.referenceCapUsd + 1e6), 'Exact salary pair differs from export');
-      if (result.supported) {
-        const x = knot.x + 1e6 / view.referenceCapUsd, curve = view.models[metric].curve, i = curve.findIndex(k => k.x >= x), a = curve[i - 1], b = curve[i];
-        const higher = a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x);
-        check(q('contrast-lowerContribution').textContent === `About ${dec(knot.y)}` && q('contrast-higherContribution').textContent === `About ${dec(higher)}`, 'Paired estimates differ from visible interpolation');
-        check(q('contrast-readout').textContent.startsWith(`${signed(result.estimate)} `), 'Difference is not the exported joint contrast');
-        check(result.low === null ? q('contrast-range').textContent === 'Unavailable' : q('contrast-range').textContent.startsWith(`${signed(result.low)} to ${signed(result.high)} `), 'Range is not the exported joint interval');
-      } else {
-        check(['lowerContribution', 'higherContribution', 'range', 'precision'].every(f => q(`contrast-${f}`).textContent === 'Unavailable'), 'Unsupported numeric estimates or repeated warning leaked');
-        const reason = q('contrast-readout').textContent.replace('Comparison unavailable. ', '');
-        check(reason && q('extra').textContent.split(reason).length === 2, 'Unsupported reason is missing or repeated');
-      }
-      check(q('contrast-unit').textContent === (metric === 'lebron' ? 'impact points/100 possessions' : view.window > 1 ? 'estimated wins/observed season' : 'estimated wins') && q('contrast-unit').closest('th')?.id === 'mb-scenario-contribution', 'Shared contribution units are missing or wrong');
-      const pairTable = q('extra').querySelector('.mb-scenarios'), lowerBox = q('contrast-lower').getBoundingClientRect(), higherBox = q('contrast-higher').getBoundingClientRect();
-      check(getComputedStyle(pairTable).display === 'table' && Math.abs(lowerBox.width - higherBox.width) < 1 && Math.abs(lowerBox.width + higherBox.width - pairTable.getBoundingClientRect().width) < 2, 'Scenario table lost native full-width equal columns');
-      check(Math.abs(q('contrast-lower').getBoundingClientRect().top - q('contrast-higher').getBoundingClientRect().top) < 1 && Math.abs(q('contrast-lowerContribution').getBoundingClientRect().top - q('contrast-higherContribution').getBoundingClientRect().top) < 1, 'Paired salary or contribution values lost shared-row alignment');
+      const signed = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v) !== 0 && (Math.abs(v) < .005 || Math.abs(v) >= 1e6) ? String(Number(Math.abs(v).toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(v))}`;
+      const unit = metric === 'lebron' ? 'impact points/100 possessions' : view.window > 1 ? 'estimated wins/observed season' : 'estimated wins';
+      check(q('million-summary').textContent.includes(`corresponds to about ${signed(result.estimate)} ${unit} on the fitted league line`) && q('million-summary').textContent.includes('does not predict the effect of a raise'), 'Association sentence differs from the saved supported contrast or lacks its causal limit');
+      check(view.window === 1 ? q('million-summary').textContent.includes('annual salary') : q('million-summary').textContent.includes('average annual pay') && q('million-summary').textContent.includes('cap-equivalent dollars'), 'Association salary basis stayed stale');
+      check(q('million-anchor').textContent === `${currency(knot.x * view.referenceCapUsd)} → ${currency(knot.x * view.referenceCapUsd + 1e6)}`, 'Technical anchor differs from saved supported pair');
+      check(q('million-difference').textContent === `${signed(result.estimate)} ${unit}` && (result.low === null ? q('million-range').textContent === 'Unavailable' : q('million-range').textContent === `${signed(result.low)} to ${signed(result.high)} ${unit}`), 'Technical difference/range differ from exported joint result');
+      check(q('million-support').textContent === `${result.nStart} near the lower salary; ${result.nEnd} near the higher salary`, 'Technical support counts differ');
+      check(!root.querySelector('input[type=range], .mb-scenarios') && !q('million-summary').children.length && q('million-details').closest('.mb-methods'), 'Retired slider/pair survived or evidence is outside methodology');
     };
-    q('extra').open = true; pairedComparison(one, 'war');
-    check(document.documentElement.scrollWidth <= innerWidth + 1 && q('extra').querySelector('.mb-scenarios').getBoundingClientRect().width <= q('extra').getBoundingClientRect().width, 'Worked comparison overflows the page');
-    const start = q('contrast-start').textContent; q('spending').value = q('spending').value === '0' ? q('spending').max : '0'; q('spending').dispatchEvent(new Event('input', { bubbles: true }));
-    check(q('contrast-start').textContent && q('contrast-start').textContent !== start, 'Starting salary did not update with slider'); pairedComparison(one, 'war');
+    association(one, 'war'); const defaultAssociation = q('million-summary').textContent;
     const gapSize = (chosen, metric, view) => {
       const abs = view.players.map(p => Math.abs(p.residual[metric])).sort((a, b) => a - b), mid = Math.floor(abs.length / 2);
       const scale = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2, ratio = chosen.residual[metric] / scale;
@@ -124,7 +111,7 @@ async function mountedScenario() {
       check(q('selected-scale').textContent.includes(`about ${scaleText}`) && q('selected-scale').textContent.includes('median distance') && !q('selected-scale').textContent.includes('matched players') && q('selected-cohort').textContent.includes(`${view.players.length} eligible matched players`), 'Rounded native scale or single full cohort context missing');
       check(getComputedStyle(q('selected-magnitude')).fontSize === '18px' && getComputedStyle(q('selected-magnitude')).fontWeight === '600', 'Gap-size number hierarchy missing');
     };
-    choose(player); connector(); gapSize(player, 'war', one);
+    choose(player); connector(); gapSize(player, 'war', one); check(q('million-summary').textContent === defaultAssociation, 'Player search changed league association');
     const pinnedRank = q('selected-percentile').textContent; hover(dots().find(d => d.dataset.player === peer.id));
     check(hoveredName() === peer.name && q('chart').querySelector('.mb-selected')?.dataset.player === player.id && q('search').value === player.name && q('selected-percentile').textContent === pinnedRank, 'Peer hover replaced the pinned comparison');
     q('chart').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' })); check(!hoveredName(), 'Chart exit retained hover');
@@ -144,38 +131,38 @@ async function mountedScenario() {
     contextPanel.querySelector('summary').click(); check(!contextPanel.open && q('period').textContent.includes('New York Knicks'), 'Collapsed team context stayed stale');
     check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
     check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
-    check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed'); gapSize(team[0], 'war', one);
+    check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed'); gapSize(team[0], 'war', one); association(one, 'war'); check(q('million-summary').textContent === defaultAssociation, 'Team filter changed league association');
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
     gapSize(player, 'lebron', one);
-    check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); pairedComparison(one, 'lebron'); check(q('contrast-unitNote').textContent.includes('not points actually scored'), 'Rate estimate units are unexplained');
+    check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); association(one, 'lebron');
     change('window', '3');
-    check(fields.every(f => q(`contrast-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Loading retained stale guided/result fields');
+    check(fields.every(f => q(`million-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
     const multiPlayer = multi.players.find(p => p.id === player.id); gapSize(multiPlayer, 'lebron', multi);
     check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + ' / 100', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
-    pairedComparison(multi, 'lebron'); check(q('contrast-context').textContent.includes('cap-equivalent') && q('contrast-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
+    association(multi, 'lebron'); check(q('million-context').textContent.includes('cap-equivalent') && q('million-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
     readableMetric(); check(q('period').textContent.includes('averages over observed seasons') && !q('window-note').closest('details'), 'Average context was hidden');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); hover(dots()[0]); change('window', '5'); check(!hoveredName(), 'Loading retained hover');
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(!hoveredName(), 'Failed view retained hover');
-    check(fields.every(f => q(`contrast-${f}`).textContent === ''), 'A contrast field stayed stale');
+    check(fields.every(f => q(`million-${f}`).textContent === ''), 'A contrast field stayed stale');
     check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Failed view retained new results/actions');
     check(!q('reset').disabled && q('units').disabled, 'Reset lost recovery availability outside the controls fieldset');
-    check(q('spending').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
+    check(q('search').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
-    q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Retry did not recover');
-    check(!q('spending').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
-    const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); pairedComparison((await json(fiveView.url)).views[0], 'lebron');
+    q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Retry did not recover');
+    check(!q('search').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
+    const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); association((await json(fiveView.url)).views[0], 'lebron');
     q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
     check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls');
     check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Reset retained selected gap size');
     check(q('snapshot').querySelector('thead').textContent.includes('gap size') && q('rows').closest('table').querySelector('thead').textContent.includes('Gap size'), 'No-JS or live table lacks gap-size equivalent');
     const priorEntry = index.views.find(v => v.endSeason === initial.endSeason - 1 && v.window === 1), prior = (await json(priorEntry.url)).views[0];
     change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, 'Prior year did not load');
-    choose(prior.players[0]); gapSize(prior.players[0], 'war', prior);
+    choose(prior.players[0]); gapSize(prior.players[0], 'war', prior); association(prior, 'war');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
-    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Year reset retained gap size');
+    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Year reset retained gap size'); association(one, 'war');
     document.body.dataset.moneyballTest = 'passed';
   } catch (error) {
     document.body.dataset.moneyballTest = 'failed'; document.body.dataset.moneyballError = encodeURIComponent(error.stack ?? String(error));
@@ -186,6 +173,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   const build = await realpath(resolve(process.env.MONEYBALL_BUILD_DIR));
   const page = '/projects/moneyball-basketball-edition/';
   const html = await readFile(join(build, page, 'index.html'), 'utf8');
+  assert.match(html, /data-mb-million-summary[^>]*>In [^<]+\$1 million more[^<]+fitted league line/, 'Default association must be server-rendered for no-JS');
   assert.ok(html.includes("script-src 'self'") && html.includes('</body>'), 'Use the actual strict-CSP private build');
   const module = `(${mountedScenario.toString()})();`, profile = await mkdtemp(join(tmpdir(), 'moneyball-browser-'));
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.webp': 'image/webp' };
