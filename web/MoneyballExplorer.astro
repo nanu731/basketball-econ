@@ -18,7 +18,7 @@ try {
 ---
 
 <section class="moneyball figure" aria-label="NBA salary and contribution explorer" data-moneyball>
-  <div class="mb-heading"><p class="label">NBA / Regular seasons</p><p class="mb-small" role="status" aria-live="polite" data-mb-status>{state}</p></div>
+  <div class="mb-heading"><p class="mb-small" role="status" aria-live="polite" data-mb-status>{state}</p></div>
   <form aria-label="Explore player value">
     <fieldset disabled data-mb-controls class="mb-controls">
       <legend class="mb-sr">Player comparison controls</legend>
@@ -47,21 +47,21 @@ try {
       </details>
     </fieldset>
   </form>
-  <p class="mb-small mb-phone-hint">Choose a search suggestion or tap a dot for exact values.</p>
-  <figure aria-labelledby="mb-chart-title" aria-describedby="mb-caption">
+  <figure aria-labelledby="mb-chart-title" aria-describedby="mb-chart-guide mb-caption">
     <h2 id="mb-chart-title" class="mb-sr">Explore player value</h2>
+    <p id="mb-chart-guide" class="mb-guide"><strong>Above the line:</strong> more contribution than the line estimates at that salary. <strong>Below:</strong> less.</p>
     <div class="mb-chart-layout">
       <div class="mb-plot">
-        <p class="mb-axis mb-y"><span data-mb-war-help><DefinitionHelp id="mb-war" label="WAR">LEBRON WAR estimates wins above a replacement-level player: a readily available fill-in player. Zero is that replacement baseline. It adds estimated contribution over playing time, including availability; it is not the team's actual wins.</DefinitionHelp></span><span data-mb-lebron-help hidden><DefinitionHelp id="mb-lebron" label="LEBRON">LEBRON names an impact statistic, rather than the player LeBron James. It estimates on-court impact in points per 100 possessions, not points actually scored. A possession is a team's turn with the ball; per 100 puts players on the same rate scale. Zero means league-average impact. The rate does not represent a season-long total.</DefinitionHelp></span><span data-mb-y-label>estimated wins · season total</span></p>
+        <p class="mb-axis mb-y"><span data-mb-war-help><DefinitionHelp id="mb-war" label="WAR">LEBRON WAR estimates wins above a replacement-level player: a readily available fill-in player. Zero is that replacement baseline. It adds estimated contribution over playing time, including availability; it is not the team's actual wins.</DefinitionHelp></span><span data-mb-lebron-help hidden><DefinitionHelp id="mb-lebron" label="LEBRON">LEBRON names an impact statistic, rather than the player LeBron James. It estimates on-court impact in points per 100 possessions, not points actually scored. A possession is a team's turn with the ball; per 100 puts players on the same rate scale. Zero means league-average impact. The rate does not represent a season-long total.</DefinitionHelp></span><span data-mb-y-label>Estimated wins contributed · season total</span></p>
         <div class="mb-stage">
-          <svg role="img" data-mb-chart aria-label="Salary and measured contribution" viewBox="0 0 300 340"><title>No interactive records loaded</title></svg>
+          <svg role="img" data-mb-chart aria-label="Salary and measured contribution" viewBox="0 0 300 420"><title>No interactive records loaded</title></svg>
           <div class="mb-empty" data-mb-empty><h3>Player comparisons unavailable</h3><p>Verified, matched records are required before dots or a league reference can appear.</p><button type="button" data-mb-retry>Retry data</button></div>
         </div>
-        <p class="mb-axis mb-x" data-mb-x-label>Annual compensation · US dollars →</p>
+        <p class="mb-axis mb-x" data-mb-x-label>Salary · US dollars</p>
       </div>
-      <aside class="mb-selection" aria-label="Selected player">
-        <h3 data-mb-selection-name aria-live="polite">Player comparison</h3>
-        <p data-mb-selection>Choose a search suggestion or tap a dot for a comparison.</p>
+      <section class="mb-selection" aria-label="Selected player">
+        <h3 data-mb-selection-name aria-live="polite" hidden>Player comparison</h3>
+        <p data-mb-selection>Search for a player or select a dot.</p>
         <div data-mb-comparison hidden>
           <dl class="mb-comparison">
             <div><dt>Reported pay</dt><dd data-mb-selected-salary></dd></div>
@@ -69,24 +69,31 @@ try {
             <div><dt><DefinitionHelp id="mb-residual" label="Gap from salary reference">Measured contribution minus the visible league reference at this player's pay. A larger gap gives a higher Value for pay percentile.</DefinitionHelp></dt><dd data-mb-selected-gap></dd></div>
             <div><dt><DefinitionHelp id="mb-value-percentile" label="Value for pay percentile">A rank on a 0–100 scale comparing the gap from the salary reference with eligible matched players in this view. A larger gap means a higher rank. The cohort includes the selected player; tied gaps share a midpoint rank. Team and search filters never change it.</DefinitionHelp></dt><dd data-mb-selected-percentile></dd></div>
           </dl>
-          <p class="mb-small mb-cohort" data-mb-selected-cohort></p>
-          <p class="mb-small" data-mb-selected-observed hidden></p>
+          <div class="mb-selection-meta"><p class="mb-small" data-mb-selected-cohort></p><p class="mb-small" data-mb-selected-observed hidden></p></div>
+          <p class="mb-small">Percentile ranks this gap, not talent or return per dollar.</p>
           <details class="mb-player-details"><summary>Playing time and records</summary><p class="mb-small" data-mb-selected-details></p></details>
         </div>
-        <p class="mb-small">Rank of the gap, not talent, causal value or return per dollar.</p>
-      </aside>
+      </section>
     </div>
-    <div class="mb-legend" aria-label="Chart legend"><span><i class="mb-dot-key" aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="League reference">A line fitted to the league's eligible matched records. It compares estimated contribution at different salaries. A player's above/below value is the vertical contribution gap from this line at that player's pay. Filters never refit it.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Estimated range for the curve">The shaded band shows where the fitted league line might sit, treating the provider's player scores as fixed. It does not show uncertainty about an individual player's impact. Technical interval details are in the model notes.</DefinitionHelp></span></div>
-    <figcaption id="mb-caption">Above the line means more measured contribution than the salary reference predicts. Filters keep the league comparison fixed. Pay does not establish cause, and individual player uncertainty is unavailable. <span class="mb-help-hint">Tap or click an underlined term for its meaning.</span></figcaption>
+    <div class="mb-legend" aria-label="Chart legend"><span><i class="mb-dot-key" aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">A line fitted to the league's eligible matched records. It compares estimated contribution at different salaries. A player's above/below value is the vertical contribution gap from this line at that player's pay. Filters never refit it.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Range for the reference">The shaded band shows where the fitted league line might sit, treating the provider's player scores as fixed. It does not show uncertainty about an individual player's impact. Technical interval details are in the model notes.</DefinitionHelp></span></div>
+    <figcaption id="mb-caption">The league reference stays fixed under filters. Salary comparisons do not establish cause. Underlined terms open definitions.</figcaption>
   </figure>
   <p class="mb-small mb-team" data-mb-team-summary hidden>Team totals count only matched salary and WAR that can be assigned to that team. A traded player's full record may appear among the dots while remaining excluded from the team total.</p>
   <details class="mb-extra" data-mb-extra>
-    <summary>What accompanies an extra $1 million?</summary>
-    <p>This compares two salary amounts $1m apart on the same fitted line. It does not predict that paying a player $1m more will create this contribution. Multi-season windows compare average annual pay in the ending season's cap-equivalent dollars.</p>
-    <svg role="img" data-mb-contrast aria-label="Supported extra million dollar curve differences" viewBox="0 0 300 200"><title>No contrast records loaded</title></svg>
-    <label class="mb-spending">Starting compensation position<input type="range" min="0" max="0" step="1" value="0" data-mb-spending disabled /></label>
-    <p data-mb-contrast-readout>No supported spending comparison is loaded.</p>
-    <p class="mb-small">An estimate appears only where enough nearby player salaries support both amounts. Unsupported positions stay missing. The range describes uncertainty in the difference between the two fitted points, treating the provider scores as fixed.</p>
+    <summary>What changes with an extra $1 million?</summary>
+    <p>Compare two salaries on the same league reference.</p>
+    <div class="mb-pay-comparison"><p data-mb-contrast-salaries></p><p data-mb-contrast-readout>No salary comparison is loaded.</p></div>
+    <p class="mb-small">This does not predict the effect of a raise.</p>
+    <p class="mb-small" data-mb-contrast-context></p>
+    <label class="mb-spending">Compare salaries starting at<input type="range" min="0" max="0" step="1" value="0" data-mb-spending disabled /></label>
+    <details class="mb-contrast-details"><summary>Range, support and full amounts</summary>
+      <dl class="mb-contrast-audit">
+        <dt>Salary amounts in US dollars</dt><dd data-mb-contrast-exact></dd>
+        <dt>Estimated range for the difference</dt><dd data-mb-contrast-range></dd>
+        <dt>Nearby matched players</dt><dd data-mb-contrast-support></dd>
+      </dl>
+      <p class="mb-small">Both salary amounts need enough nearby observations. The range concerns the difference between two fitted points, treating the supplied player scores as fixed; it does not measure uncertainty in an individual's impact. For a straight-line reference, the estimated change is the same at every supported salary.</p>
+    </details>
   </details>
   <details data-mb-live-table hidden class="mb-records">
     <summary>Player records · <span class="mb-small" data-mb-count></span></summary>
@@ -151,7 +158,7 @@ try {
   .moneyball.figure { margin-block: 0; }
   .moneyball { color: var(--green); --mb-rule: 1px solid var(--green); }
   .moneyball figure { margin: 0; }
-  .mb-heading { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-s); padding-block: 0 var(--space-xs); }
+  .mb-heading { padding-block: 0 var(--space-xs); }
   .mb-heading p { margin: 0; }
   .mb-small, figcaption { font-size: var(--type-small); line-height: 1.5; }
   .mb-heading .mb-small { max-width: 65ch; }
@@ -181,40 +188,40 @@ try {
   .mb-controls:disabled { opacity: .7; }
   .mb-secondary > button { align-self: end; font-size: var(--type-small); }
   .mb-note { margin-block: var(--space-xs); max-width: 100%; }
-  .mb-chart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 18rem; border-block: 2px solid var(--green); }
-  .mb-plot { min-width: 0; background: var(--sand); padding: var(--space-s) var(--space-xs) var(--space-xs); }
+  .mb-chart-layout { border-block: 2px solid var(--green); }
+  .mb-plot { min-width: 0; background: var(--cream); padding: var(--space-s) var(--space-xs) var(--space-xs); }
   .mb-y { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2xs); }
   .moneyball .mb-y :global(.definition-trigger) { font-family: var(--font-numeric); min-inline-size: 44px; }
-  .mb-phone-hint { display: none; }
   .moneyball :global(svg .mb-selected-name) { font-weight: 600; }
-  .mb-help-hint { display: block; margin-top: var(--space-2xs); }
-  .mb-axis { font-family: var(--font-numeric); font-size: .75rem; margin: 0; font-variant-numeric: tabular-nums; }
+  .mb-axis { font-family: var(--font-body); font-size: .875rem; margin: 0; font-variant-numeric: tabular-nums; }
   .mb-x { text-align: right; }
-  .mb-stage { position: relative; min-height: 340px; }
-  [data-mb-chart] { width: 100%; height: 340px; display: block; }
-  [data-mb-contrast] { width: 100%; height: 200px; display: block; background: var(--sand); }
-  .moneyball :global(svg text) { font: 12px var(--font-numeric); fill: var(--green); font-variant-numeric: tabular-nums; }
-  .moneyball :global(svg .mb-name) { font-size: 12px; paint-order: stroke; stroke: var(--sand); stroke-width: 4px; stroke-linejoin: round; }
+  .mb-stage { position: relative; min-height: 420px; }
+  [data-mb-chart] { width: 100%; height: 420px; display: block; }
+  .moneyball :global(svg text) { font: 14px var(--font-numeric); fill: var(--green); font-variant-numeric: tabular-nums; }
+  .moneyball :global(svg .mb-name) { font-family: var(--font-body); font-size: 14px; paint-order: stroke; stroke: var(--cream); stroke-width: 4px; stroke-linejoin: round; }
   .moneyball :global(.mb-grid) { stroke: var(--green); stroke-opacity: .18; }
   .moneyball :global(.mb-zero) { stroke: var(--green); stroke-width: 1; }
-  .moneyball :global(.mb-band) { fill: var(--cream); stroke: none; }
-  .moneyball :global(.mb-reference) { fill: none; stroke: var(--green); stroke-width: 2; stroke-dasharray: 7 4; }
-  .moneyball :global(.mb-dot) { fill: var(--green); stroke: var(--cream); stroke-width: .8; cursor: pointer; }
-  .moneyball :global(.mb-selected) { fill: var(--accent); stroke: var(--green); stroke-width: 2; }
-  .moneyball :global(.mb-interval) { stroke: var(--green); stroke-opacity: .35; }
-  .moneyball :global(.mb-cursor) { stroke: var(--accent); stroke-width: 2; }
+  .moneyball :global(.mb-band) { fill: var(--sand); fill-opacity: .7; stroke: none; pointer-events: none; }
+  .moneyball :global(.mb-reference) { fill: none; stroke: var(--green); stroke-width: 2.5; pointer-events: none; }
+  .moneyball :global(.mb-reference-halo) { fill: none; stroke: var(--cream); stroke-width: 5; pointer-events: none; }
+  .moneyball :global(.mb-dot) { fill: var(--green); fill-opacity: .75; stroke: var(--cream); stroke-width: .8; cursor: pointer; }
+  .moneyball :global(.mb-selected) { fill: var(--accent); fill-opacity: 1; stroke: var(--green); stroke-width: 2; }
+  .moneyball :global(.mb-gap) { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+  .moneyball :global(.mb-gap-base) { fill: var(--cream); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
   .mb-empty { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: start; padding: var(--space-m); }
   .mb-empty h3 { margin: 0 0 var(--space-xs); font-size: var(--type-h3); }
   .mb-empty p { max-width: 35ch; font-size: 1rem; margin: 0 0 var(--space-s); }
   .mb-empty[hidden], [hidden] { display: none !important; }
-  .mb-selection { padding: var(--space-xs); border-left: var(--mb-rule); }
+  .mb-selection { padding: var(--space-s) var(--space-xs); border-top: var(--mb-rule); }
   .mb-selection h3 { font-size: 1.25rem; line-height: 1.2; margin: 0 0 var(--space-2xs); }
-  .mb-selection > p { font-size: 1rem; margin: 0 0 var(--space-s); }
+  .mb-selection > p { font-size: 1rem; margin: 0; }
   .mb-selection > .mb-small { font-size: var(--type-small); line-height: 1.35; margin: var(--space-2xs) 0 0; }
-  .mb-comparison { display: grid; gap: var(--space-2xs); margin: 0; }
-  .mb-comparison dt { font-size: var(--type-small); line-height: 1.25; }
-  .mb-comparison dd { margin: var(--space-3xs) 0 0; font-family: var(--font-numeric); font-size: var(--type-small); line-height: 1.3; font-variant-numeric: tabular-nums; }
-  /* Panel paragraphs must not inherit the article's long prose margins. */
+  .mb-comparison { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-s); margin: 0; }
+  .mb-comparison dt { min-height: 44px; display: flex; align-items: center; font-size: var(--type-small); line-height: 1.25; }
+  .mb-comparison dd { margin: var(--space-3xs) 0 0; font-family: var(--font-numeric); font-size: 1rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .mb-selection-meta { display: flex; flex-wrap: wrap; gap: var(--space-3xs) var(--space-s); margin-top: var(--space-xs); }
+  .mb-selection-meta > p { margin: 0; }
+  /* Result paragraphs must not inherit the article's long prose margins. */
   .mb-selection [data-mb-comparison] > p { font-size: var(--type-small); line-height: 1.35; margin: var(--space-3xs) 0; }
   .mb-selection .mb-player-details { margin: var(--space-3xs) 0 0; }
   .mb-selection .mb-player-details > summary { min-height: 44px; padding-block: var(--space-3xs); font: 1rem/1.3 var(--font-body); }
@@ -222,8 +229,9 @@ try {
   .mb-legend { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); font-size: var(--type-small); padding-block: var(--space-xs); }
   .mb-legend > span { display: flex; align-items: center; gap: var(--space-2xs); }
   .mb-dot-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
-  .mb-line-key { width: 24px; border-top: 2px dashed var(--green); }
-  .mb-band-key { width: 24px; height: 12px; background: var(--cream); border: 1px solid var(--green); }
+  .mb-line-key { width: 24px; border-top: 3px solid var(--green); }
+  .mb-band-key { width: 24px; height: 12px; background: var(--sand); border: 1px solid var(--green); }
+  .moneyball .mb-guide { max-width: 75ch; margin: var(--space-2xs) 0; font-size: 1rem; line-height: 1.45; }
   figcaption { max-width: 90ch; }
   .mb-coverage, .mb-team { border-top: var(--mb-rule); padding-top: var(--space-xs); }
   .moneyball details { border-top: var(--mb-rule); margin-block: var(--space-s); }
@@ -231,7 +239,13 @@ try {
   .moneyball summary:hover { text-decoration: underline; text-underline-offset: .2em; }
   .moneyball details > p { max-width: 75ch; }
   .mb-extra { padding-bottom: var(--space-s); }
-  .mb-extra > p { font-size: 1rem; }
+  .moneyball .mb-extra > p { font-size: 1rem; margin-block: var(--space-2xs); }
+  .mb-pay-comparison p { margin: var(--space-2xs) 0; font: 1.125rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; }
+  .mb-pay-comparison p:empty { display: none; }
+  .mb-contrast-audit { margin: var(--space-xs) 0; }
+  .mb-contrast-audit dt { font-size: var(--type-small); font-weight: 600; margin-top: var(--space-xs); }
+  .mb-contrast-audit dd { margin: var(--space-3xs) 0 0; font-family: var(--font-numeric); font-size: var(--type-small); }
+  .mb-contrast-details > summary { font: 1rem/1.4 var(--font-body); }
   .mb-spending { max-width: 35rem; margin-top: var(--space-s); }
   .mb-spending input { width: 100%; min-height: 44px; accent-color: var(--green); }
   .mb-table-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-xs); margin-top: var(--space-m); }
@@ -253,7 +267,7 @@ try {
   .moneyball .mb-source-versions > summary { min-height: 44px; padding-block: var(--space-3xs); font: var(--type-small)/1.4 var(--font-body); }
   .mb-source-versions :global(code), [data-mb-view-evidence] { overflow-wrap: anywhere; }
   .mb-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  @media (max-width: 60rem) { .mb-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-chart-layout { grid-template-columns: minmax(0, 1fr) 16rem; } }
-  @media (max-width: 44rem) { .mb-phone-hint { display: block; margin-block: 0 var(--space-2xs); font-size: .8125rem; } .mb-heading { display: block; } .mb-heading .mb-small { margin-top: var(--space-2xs); } .mb-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-chart-layout { grid-template-columns: minmax(0, 1fr); } .mb-selection { border-left: 0; border-top: var(--mb-rule); } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
+  @media (max-width: 60rem) { .mb-secondary, .mb-comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 44rem) { .mb-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media print { .mb-controls, .mb-extra, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

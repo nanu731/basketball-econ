@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, salaryComparison } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -405,4 +405,50 @@ test('committing a suggestion rechecks the current query team and view without c
   assert.equal(resolveSearchChoice({ ...view, players: view.players.slice(1) }, '', 'joel', id), undefined);
   assert.equal(resolveSearchChoice(null, '', 'joel', id), undefined);
   assert.deepEqual(view, before);
+});
+
+test('salary ticks use readable millions or cap percentages within the unchanged domain', () => {
+  const usd = salaryTicks(0, .47, 154647000, 'usd', 5);
+  assert.deepEqual(usd.map(t => t.label), ['$0m', '$20m', '$40m', '$60m']);
+  assert.ok(usd.every(t => t.x >= 0 && t.x <= .47));
+  assert.ok(Math.abs(usd[1].x * 154647000 - 20000000) < 1e-8);
+  const share = salaryTicks(0, .47, 154647000, 'share', 5);
+  assert.deepEqual(share.map(t => t.label), ['0%', '10%', '20%', '30%', '40%']);
+  assert.deepEqual(salaryTicks(.1, .1, 154647000, 'usd', 5), []);
+});
+
+test('extra-million comparison prioritizes compact endpoints and signed native units', () => {
+  const view = fixture().views[0], knot = structuredClone(view.models.war.curve[0]);
+  knot.x = .07518518; knot.extraMillion = contrast(true, .1);
+  const before = structuredClone(knot), result = salaryComparison(view, 'war', knot);
+  assert.equal(result.salaries, '$7.5M → $8.5M');
+  assert.equal(result.difference, '+0.10 estimated wins');
+  assert.match(result.exact, /\$7,518,518.*\$8,518,518/);
+  assert.match(result.aria, /starting at \$7,518,518.*ending at \$8,518,518/);
+  assert.match(result.support, /3 near the starting amount; 3 near the ending amount/);
+  assert.deepEqual(knot, before);
+  knot.extraMillion = contrast(true, -.25);
+  assert.equal(salaryComparison(view, 'war', knot).difference, '−0.25 estimated wins');
+  knot.extraMillion = contrast(true, 0);
+  assert.equal(salaryComparison(view, 'war', knot).difference, '0.00 estimated wins');
+});
+
+test('extra-million rate and multi-year labels preserve their actual units and dollar basis', () => {
+  const view = fixture().views[0], knot = structuredClone(view.models.lebron.curve[0]);
+  knot.extraMillion = contrast(true, .02);
+  assert.equal(salaryComparison(view, 'lebron', knot).difference, '+0.02 impact points/100 possessions');
+  view.window = 3;
+  assert.match(salaryComparison(view, 'war', knot).difference, /estimated wins\/observed season/);
+  assert.match(salaryComparison(view, 'war', knot).context, /Average annual salary.*cap-equivalent/);
+});
+
+test('unsupported comparisons never carry zero results and null ranges remain unavailable', () => {
+  const view = fixture().views[0], knot = structuredClone(view.models.war.curve[0]);
+  knot.extraMillion = contrast(false); knot.extraMillion.reason = 'insufficient_bracketing';
+  const unsupported = salaryComparison(view, 'war', knot);
+  assert.match(unsupported.difference, /Comparison unavailable.*not enough nearby salaries/);
+  assert.doesNotMatch(unsupported.difference, /0\.00/); assert.equal(unsupported.range, 'Unavailable');
+  knot.extraMillion = { ...contrast(true, -.25), low: null, high: null };
+  const noRange = salaryComparison(view, 'war', knot);
+  assert.equal(noRange.difference, '−0.25 estimated wins'); assert.equal(noRange.range, 'Unavailable');
 });

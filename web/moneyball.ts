@@ -207,6 +207,8 @@ export const viewLabel = (v: View): string => v.window === 1 ? seasonLabel(v.end
 // Reuse formatters: rebuilding locale/currency rules for every dot slows filtering.
 const decimalFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 const moneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const compactSalaryFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
+const preciseSalaryFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const percentileFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 export const percentile = (v: number): string => {
   const score = num(v); if (score < 0 || score > 100) fail('percentile range');
@@ -330,6 +332,30 @@ export function niceTicks(min: number, max: number, count = 5): number[] {
   return ticks.sort((a, b) => a - b);
 }
 
+export function salaryTicks(min: number, max: number, cap: number, units: string, count: number) {
+  const scale = units === 'share' ? 100 : cap / 1e6;
+  return niceTicks(min * scale, max * scale, count).map(value => ({
+    x: value / scale, label: units === 'share' ? `${value}%` : `$${value}m`,
+  }));
+}
+
+/** Presentation only: use the exported paired difference and support decision. */
+export function salaryComparison(view: View, metric: Metric, knot: Knot) {
+  const start = knot.x * view.referenceCapUsd, end = start + 1e6, result = knot.extraMillion;
+  const unit = metric === 'war' ? view.window > 1 ? 'estimated wins/observed season' : 'estimated wins' : 'impact points/100 possessions';
+  const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${decimal(Math.abs(value))}`;
+  const difference = result.supported ? `${signed(num(result.estimate))} ${unit}` : `Comparison unavailable. ${readableReason(result.reason)}`;
+  const exact = `${preciseSalaryFormatter.format(start)} → ${preciseSalaryFormatter.format(end)}`;
+  return {
+    salaries: `${compactSalaryFormatter.format(start)} → ${compactSalaryFormatter.format(end)}`,
+    difference, exact,
+    context: view.window === 1 ? 'Season salary · US dollars' : `Average annual salary · ${seasonLabel(view.endSeason)} cap-equivalent dollars`,
+    range: result.supported && result.low !== null ? `${signed(result.low)} to ${signed(result.high!)} ${unit}` : 'Unavailable',
+    support: `${result.nStart} near the starting amount; ${result.nEnd} near the ending amount`,
+    aria: `Compare salaries starting at ${preciseSalaryFormatter.format(start)}, ending at ${preciseSalaryFormatter.format(end)}; ${difference}`,
+  };
+}
+
 /** Preserve only an explicit choice that remains valid; typing never commits. */
 export function resolvePlayerSelection(shown: Pick<Player, 'id'>[], current: string): string {
   return shown.some(p => p.id === current) ? current : '';
@@ -344,7 +370,7 @@ export function chartLabels(shown: Player[], selected: string, width: number): P
 }
 
 interface LabelPoint { id: string; name: string; x: number; y: number }
-interface PlacedLabel extends LabelPoint { left: number; right: number; top: number; bottom: number; textWidth: number }
+interface PlacedLabel extends LabelPoint { left: number; right: number; top: number; bottom: number; textWidth: number; compressed: boolean }
 /** At most six labels and three nearby positions each; no DOM measurements. */
 export function placeChartLabels(points: LabelPoint[], selected: string, width: number, height: number): PlacedLabel[] {
   const L = 46, R = width - 14, T = 26, B = height - 40;
@@ -353,14 +379,13 @@ export function placeChartLabels(points: LabelPoint[], selected: string, width: 
   const ordered = chosen ? [chosen, ...automatic] : automatic;
   const placed: PlacedLabel[] = [];
   for (const point of ordered) {
-    // 12px numeric font, plus painted-stroke clearance. Long selected names
-    // retain their text and receive an explicit SVG text width if necessary.
-    const textWidth = Math.min(point.name.length * 7.5 + 4, R - L);
+    // shortcut: conservative 14px text bounds; use font metrics if collisions recur.
+    const fullWidth = point.name.length * 8.75 + 4, textWidth = Math.min(fullWidth, R - L);
     const right = point.x > width * (width < 500 ? .5 : .7);
     const left = Math.max(L, Math.min(R - textWidth, point.x + (right ? -9 - textWidth : 9)));
-    for (const offset of [-10, -34, 18]) {
-      const baseline = Math.max(T + 14, Math.min(B - 4, point.y + offset));
-      const candidate = { ...point, x: left + 2, y: baseline, left, right: left + textWidth, top: baseline - 14, bottom: baseline + 4, textWidth };
+    for (const offset of [-10, -36, 20]) {
+      const baseline = Math.max(T + 16, Math.min(B - 5, point.y + offset));
+      const candidate = { ...point, x: left + 2, y: baseline, left, right: left + textWidth, top: baseline - 16, bottom: baseline + 5, textWidth, compressed: fullWidth > textWidth };
       if (placed.some(p => candidate.left < p.right + 2 && candidate.right + 2 > p.left && candidate.top < p.bottom + 2 && candidate.bottom + 2 > p.top)) continue;
       placed.push(candidate); break;
     }
@@ -376,9 +401,9 @@ export function mountMoneyball(root: HTMLElement): void {
   const metric = get<HTMLSelectElement>('metric'), units = get<HTMLSelectElement>('units');
   const search = get<HTMLInputElement>('search'), team = get<HTMLSelectElement>('team');
   const searchShell = get('search-shell'), suggestions = get('suggestions'), suggestionModel = createPlayerSuggestions();
-  const chart = get<SVGSVGElement & HTMLElement>('chart'), contrastChart = get<SVGSVGElement & HTMLElement>('contrast');
+  const chart = get<SVGSVGElement & HTMLElement>('chart');
   const table = get<HTMLTableSectionElement>('rows'), slider = get<HTMLInputElement>('spending');
-  const records = get<HTMLDetailsElement>('live-table'), extra = get<HTMLDetailsElement>('extra');
+  const records = get<HTMLDetailsElement>('live-table');
   let tableDirty = true;
   let index: ViewIndex | null = null, bundle: Bundle | null = null, active: View | null = null, selected = '', request = 0;
   let loader: ReturnType<typeof createViewLoader> | null = null;
@@ -438,14 +463,16 @@ export function mountMoneyball(root: HTMLElement): void {
     if (!preserveChoice) { selected = ''; search.value = ''; }
     closeSuggestions();
     bundle = null; active = null; setControls(false);
-    chart.replaceChildren(); contrastChart.replaceChildren(); table.replaceChildren(); tableDirty = true;
+    chart.replaceChildren(); table.replaceChildren(); tableDirty = true;
     txt('search-result', 'Player suggestions will return after this view loads.');
-    txt('selection-name', 'Player comparison'); get('selection').hidden = false; get('comparison').hidden = true;
+    txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
     for (const key of ['selected-salary', 'selected-contribution', 'selected-gap', 'selected-percentile', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
-    txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Extra $1m comparison unavailable.'); txt('count', 'No interactive player records');
+    txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.'); txt('contrast-readout', 'Salary comparison unavailable.');
+    for (const key of ['salaries', 'context', 'exact', 'range', 'support']) txt(`contrast-${key}`, '');
+    slider.max = '0'; slider.value = '0'; slider.setAttribute('aria-valuetext', 'Salary comparison unavailable'); txt('count', 'No interactive player records');
     txt('coverage', ''); txt('model', ''); txt('view-evidence', 'No interactive view evidence loaded.');
     get('view-sources').replaceChildren(); get('view-source-versions').replaceChildren();
-    txt('y-label', 'Contribution · awaiting selected view'); txt('x-label', 'Compensation · awaiting selected view');
+    txt('y-label', 'Contribution · awaiting selected view'); txt('x-label', 'Salary · awaiting selected view');
     status.textContent = message; get('empty').hidden = false; get('live-table').hidden = true; get('snapshot').hidden = false;
   }
   async function readJSON(path: string, limit = VIEW_BYTE_LIMIT): Promise<unknown> {
@@ -505,7 +532,8 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('count', `${shown.length} of ${active.players.length} matched players shown`);
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
     metric.options[0].textContent = warOptionLabel(active.window);
-    txt('y-label', m === 'war' ? active.window > 1 ? 'estimated wins / observed season' : 'estimated wins · season total' : 'impact points / 100 possessions'); txt('x-label', units.value === 'share' ? 'Compensation · % of season cap →' : active.window === 1 ? 'Annual compensation · US dollars →' : `Average annual compensation · ${seasonLabel(active.endSeason)} cap-equivalent dollars →`);
+    txt('y-label', m === 'war' ? active.window > 1 ? 'Estimated wins contributed · average per observed season' : 'Estimated wins contributed · season total' : 'Impact points per 100 possessions');
+    txt('x-label', units.value === 'share' ? 'Salary · % of season cap' : active.window === 1 ? 'Salary · US dollars' : `Average annual salary · ${seasonLabel(active.endSeason)} cap-equivalent dollars`);
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
     if (bundle) txt('view-evidence', `${viewLabel(active)} · ${bundle.dataVersion}. ${active.models[m].name}. ${active.models[m].method} ${active.models[m].validation} ${active.models[m].intervalLabel} ${bundle.publication.note}`);
     const t = active.teams.find(t => t.team === team.value);
@@ -520,13 +548,13 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('table-cost', units.value === 'share' ? 'Compensation (% cap)' : active.window === 1 ? 'Compensation (USD)' : 'Avg compensation (end-cap USD)');
     txt('table-war', active.window === 1 ? 'WAR total' : 'Avg WAR / observed season'); txt('table-residual', `Above / below reference (${m === 'war' ? 'WAR' : 'LEBRON'})`); txt('table-percentile', `Value for pay percentile (${m.toUpperCase()})`);
     const p = active.players.find(p => p.id === selected);
-    txt('selection-name', p?.name ?? 'Player comparison'); get('selection').hidden = !!p; get('comparison').hidden = !p;
+    txt('selection-name', p?.name ?? 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {
       const copy = playerComparisonCopy(p, m, active);
       for (const field of ['salary', 'contribution', 'gap', 'percentile', 'cohort', 'observed', 'details'] as const) txt(`selected-${field}`, copy[field]);
       get('selected-observed').hidden = active.window === 1;
-    } else txt('selection', 'Choose a search suggestion or tap a dot for a comparison.');
-    draw(chart, false); if (extra.open) draw(contrastChart, true); contrastReadout();
+    } else txt('selection', 'Search for a player or select a dot.');
+    draw(); contrastReadout();
   }
   function renderTable() {
     if (!active || !records.open || !tableDirty) return;
@@ -540,39 +568,41 @@ export function mountMoneyball(root: HTMLElement): void {
     if (!shown.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 8; td.textContent = 'No players match these filters. Clear the search or reset the view.'; tr.append(td); table.append(tr); }
     tableDirty = false;
   }
-  function draw(target: SVGSVGElement & HTMLElement, extra: boolean) {
+  function draw() {
     if (!active) return;
     const m = metric.value as Metric, curve = active.models[m].curve, all = active.players, shown = rows();
-    const width = Math.max(260, Math.round(target.getBoundingClientRect().width)), height = extra ? 200 : 340;
-    target.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    const bounds = chart.getBoundingClientRect(), width = Math.max(260, Math.round(bounds.width)), height = Math.max(340, Math.round(bounds.height));
+    chart.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const L = 46, R = 14, T = 26, B = 40, xmax = curve[curve.length - 1].x, xmin = Math.min(0, curve[0].x);
-    const values = extra ? curve.filter(k => k.extraMillion.supported).flatMap(k => [k.extraMillion.estimate!, k.extraMillion.low ?? k.extraMillion.estimate!, k.extraMillion.high ?? k.extraMillion.estimate!]) : [...all.map(p => p[m]), ...curve.flatMap(k => [k.y, k.low ?? k.y, k.high ?? k.y])];
-    if (!values.length) { target.replaceChildren(svg('title', {}, 'No locally supported extra $1m comparisons'), svg('text', { x: 12, y: 40, 'font-size': 13 }, 'No supported comparisons. See explanation below.')); return; }
+    const values = [...all.map(p => p[m]), ...curve.flatMap(k => [k.y, k.low ?? k.y, k.high ?? k.y])];
     const min = Math.min(0, ...values), max = Math.max(0, ...values), span = max - min || 1, ymin = min - span * .08, ymax = max + span * .08;
     const x = (v: number) => L + (v - xmin) / (xmax - xmin || 1) * (width - L - R), y = (v: number) => T + (ymax - v) / (ymax - ymin) * (height - T - B);
-    const children: SVGElement[] = [svg('title', {}, extra ? 'Change in fitted contribution associated with an extra $1 million' : `Salary and ${metricLabel(m, active)}`), svg('desc', {}, extra ? 'Only supported spending positions are drawn. Intervals describe conditional curve differences.' : 'Dots represent matched players. Dashed line is the fixed league reference. Use player search or the table for keyboard access.')];
-    for (const v of niceTicks(ymin, ymax)) { children.push(svg('line', { x1: L, x2: width - R, y1: y(v), y2: y(v), class: 'mb-grid' }), svg('text', { x: L - 7, y: y(v) + 4, 'text-anchor': 'end' }, String(Number(v.toPrecision(8))))); }
-    const ticks = width < 500 ? 2 : 4;
-    for (let i = 0; i <= ticks; i++) { const v = xmin + (xmax - xmin) * i / ticks; children.push(svg('text', { x: x(v), y: height - 13, 'text-anchor': i === 0 ? 'start' : i === ticks ? 'end' : 'middle' }, units.value === 'share' ? `${Math.round(v * 100)}%` : `$${(v * active.referenceCapUsd / 1e6).toFixed(0)}m`)); }
+    const children: SVGElement[] = [svg('title', {}, `Salary and ${metricLabel(m, active)}`), svg('desc', {}, 'Dots represent matched players. The solid line is the fixed salary reference. A selected player has a vertical connector to that same line. Use player search or the table for keyboard access.')];
+    for (const v of niceTicks(ymin, ymax)) children.push(svg('line', { x1: L, x2: width - R, y1: y(v), y2: y(v), class: 'mb-grid' }), svg('text', { x: L - 7, y: y(v) + 4, 'text-anchor': 'end' }, String(Number(v.toPrecision(8)))));
+    for (const tick of salaryTicks(xmin, xmax, active.referenceCapUsd, units.value, width < 500 ? 3 : 5)) children.push(svg('text', { x: x(tick.x), y: height - 13, 'text-anchor': tick.x === xmin ? 'start' : x(tick.x) > width - 40 ? 'end' : 'middle' }, tick.label));
     children.push(svg('line', { x1: L, x2: width - R, y1: y(0), y2: y(0), class: 'mb-zero' }));
     const path = (points: [number, number][]) => points.map(([a, b], i) => `${i ? 'L' : 'M'}${x(a)},${y(b)}`).join(' ');
-    if (!extra) {
-      if (curve[0].low !== null) children.push(svg('path', { d: `${path(curve.map(k => [k.x, k.low!]))} ${curve.slice().reverse().map(k => `L${x(k.x)},${y(k.high!)}`).join(' ')} Z`, class: 'mb-band' }));
-      children.push(svg('path', { d: path(curve.map(k => [k.x, k.y])), class: 'mb-reference' }));
-      for (const p of shown) { const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 7 : 4, class: p.id === selected ? 'mb-dot mb-selected' : 'mb-dot', 'data-player': p.id }); dot.append(svg('title', {}, `${p.name}: ${decimal(p[m])}; ${money(p.salaryUsd)}`)); children.push(dot); }
-      const labels = chartLabels(shown, selected, width).map(p => ({ id: p.id, name: p.name, x: x(p.salaryCapShare), y: y(p[m]) }));
-      for (const p of placeChartLabels(labels, selected, width, height)) {
-        const attrs: Record<string, string | number> = { x: p.x, y: p.y, 'text-anchor': 'start', class: p.id === selected ? 'mb-name mb-selected-name' : 'mb-name' };
-        if (p.name.length * 7.5 + 4 > p.textWidth) { attrs.textLength = Math.max(1, p.textWidth - 4); attrs.lengthAdjust = 'spacingAndGlyphs'; }
-        children.push(svg('text', attrs, p.name));
-      }
-    } else {
-      let segment: Knot[] = [];
-      const flush = () => { if (!segment.length) return; children.push(svg('path', { d: path(segment.map(k => [k.x, k.extraMillion.estimate!])), class: 'mb-reference' })); for (const k of segment) { if (k.extraMillion.low !== null) children.push(svg('line', { x1: x(k.x), x2: x(k.x), y1: y(k.extraMillion.low!), y2: y(k.extraMillion.high!), class: 'mb-interval' })); children.push(svg('circle', { cx: x(k.x), cy: y(k.extraMillion.estimate!), r: 2.5, class: 'mb-dot' })); } segment = []; };
-      curve.forEach(k => { if (k.extraMillion.supported) segment.push(k); else flush(); }); flush();
-      const knot = curve[Math.min(curve.length - 1, Number(slider.value))]; children.push(svg('line', { x1: x(knot.x), x2: x(knot.x), y1: T, y2: height - B, class: 'mb-cursor' }));
+    if (curve[0].low !== null) children.push(svg('path', { d: `${path(curve.map(k => [k.x, k.low!]))} ${curve.slice().reverse().map(k => `L${x(k.x)},${y(k.high!)}`).join(' ')} Z`, class: 'mb-band' }));
+    const playerDot = (p: Player) => {
+      const dot = svg('circle', { cx: x(p.salaryCapShare), cy: y(p[m]), r: p.id === selected ? 6 : 3.5, class: p.id === selected ? 'mb-dot mb-selected' : 'mb-dot', 'data-player': p.id });
+      dot.append(svg('title', {}, `${p.name}: ${decimal(p[m])}; ${money(p.salaryUsd)}`)); return dot;
+    };
+    for (const p of shown) if (p.id !== selected) children.push(playerDot(p));
+    const referencePath = path(curve.map(k => [k.x, k.y]));
+    children.push(svg('path', { d: referencePath, class: 'mb-reference-halo' }), svg('path', { d: referencePath, class: 'mb-reference' }));
+    const chosen = shown.find(p => p.id === selected);
+    if (chosen) {
+      const reference = interpolate(curve, chosen.salaryCapShare);
+      children.push(svg('line', { x1: x(chosen.salaryCapShare), x2: x(chosen.salaryCapShare), y1: y(chosen[m]), y2: y(reference), class: 'mb-gap' }),
+        svg('circle', { cx: x(chosen.salaryCapShare), cy: y(reference), r: 3.5, class: 'mb-gap-base' }), playerDot(chosen));
     }
-    target.setAttribute('viewBox', `0 0 ${width} ${height}`); target.replaceChildren(...children);
+    const labels = chartLabels(shown, selected, width).map(p => ({ id: p.id, name: p.name, x: x(p.salaryCapShare), y: y(p[m]) }));
+    for (const p of placeChartLabels(labels, selected, width, height)) {
+      const attrs: Record<string, string | number> = { x: p.x, y: p.y, 'text-anchor': 'start', class: p.id === selected ? 'mb-name mb-selected-name' : 'mb-name' };
+      if (p.compressed) { attrs.textLength = Math.max(1, p.textWidth - 4); attrs.lengthAdjust = 'spacingAndGlyphs'; }
+      children.push(svg('text', attrs, p.name));
+    }
+    chart.replaceChildren(...children);
   }
   function resetContrast() {
     if (!active) return;
@@ -581,10 +611,12 @@ export function mountMoneyball(root: HTMLElement): void {
   }
   function contrastReadout() {
     if (!active) return;
-    const curve = active.models[metric.value as Metric].curve; slider.max = String(curve.length - 1);
-    const k = curve[Math.min(Number(slider.value), curve.length - 1)], e = k.extraMillion;
-    slider.setAttribute('aria-valuetext', `Starting compensation ${money(k.x * active.referenceCapUsd)}; ${e.supported ? `${decimal(e.estimate!)} ${metric.value === 'war' ? 'WAR' : 'LEBRON points per 100 possessions'} for the curve difference` : `comparison unavailable. ${readableReason(e.reason)}`}`);
-    txt('contrast-readout', `Starting at ${money(k.x * active.referenceCapUsd)}${active.window > 1 ? ` average annual ${seasonLabel(active.endSeason)} cap-equivalent compensation` : ''}: ${e.supported ? `${decimal(e.estimate!)} ${metric.value === 'war' ? 'WAR' : 'LEBRON points / 100 possessions'} associated with an extra $1m${e.low !== null ? `; estimated range for this curve difference: ${decimal(e.low)} to ${decimal(e.high!)}` : '; uncertainty range unavailable'}. Nearby records at the two amounts: ${e.nStart} and ${e.nEnd}.` : `Unavailable: ${readableReason(e.reason)}`}`);
+    const curve = active.models[metric.value as Metric].curve;
+    const knot = curve[Math.min(Number(slider.value), curve.length - 1)];
+    const copy = salaryComparison(active, metric.value as Metric, knot);
+    slider.setAttribute('aria-valuetext', `${copy.aria}. ${copy.context}.`);
+    txt('contrast-readout', copy.difference);
+    for (const field of ['salaries', 'context', 'exact', 'range', 'support'] as const) txt(`contrast-${field}`, copy[field]);
   }
   root.querySelector('form')?.addEventListener('submit', e => e.preventDefault());
   get('retry').addEventListener('click', () => { void (index ? changeView() : loadIndex()); });
@@ -625,9 +657,8 @@ export function mountMoneyball(root: HTMLElement): void {
   searchShell.addEventListener('focusout', event => {
     if (event.relatedTarget instanceof Node && !searchShell.contains(event.relatedTarget)) { closeSuggestions(); if (active) searchStatus(); }
   });
-  slider.addEventListener('input', () => { contrastReadout(); if (extra.open) draw(contrastChart, true); });
+  slider.addEventListener('input', contrastReadout);
   records.addEventListener('toggle', () => { if (records.open) renderTable(); });
-  extra.addEventListener('toggle', () => { if (extra.open) draw(contrastChart, true); });
   const choose = (e: Event) => {
     const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-player]') : null;
     if (target && commitPlayer(target.dataset.player ?? '') && e.currentTarget === table) {
@@ -637,6 +668,6 @@ export function mountMoneyball(root: HTMLElement): void {
   chart.addEventListener('click', choose); table.addEventListener('click', choose);
   get('reset').addEventListener('click', () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = 'war'; units.value = 'usd'; search.value = ''; team.value = ''; selected = ''; changeView(); });
   let frame = 0;
-  new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { draw(chart, false); if (extra.open) draw(contrastChart, true); }); }).observe(chart.parentElement!);
+  new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); }).observe(chart.parentElement!);
   void loadIndex();
 }
