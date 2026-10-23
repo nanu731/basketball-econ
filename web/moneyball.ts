@@ -10,6 +10,8 @@ export interface Bundle { schemaVersion: 'moneyball.v1'; dataVersion: string; de
 export interface IndexView { id: string; endSeason: number; window: 1 | 3 | 5; url: string }
 export interface ViewIndex { schemaVersion: 'moneyball.index.v1'; dataVersion: string; defaultView: string; views: IndexView[] }
 export const INDEX_URL = '/data/moneyball/v1/index.json';
+export const INDEX_BYTE_LIMIT = 100_000;
+export const VIEW_BYTE_LIMIT = 2_000_000;
 const metrics: Metric[] = ['lebron', 'war'];
 const fail = (reason: string): never => { throw new Error(`Invalid Moneyball data: ${reason}`); };
 const obj = (v: unknown): any => v !== null && typeof v === 'object' && !Array.isArray(v) ? v : fail('object required');
@@ -19,19 +21,52 @@ const nonneg = (v: unknown): number => num(v) >= 0 ? v as number : fail('negativ
 const int = (v: unknown): number => Number.isSafeInteger(v) && nonneg(v) === v ? v as number : fail('nonnegative integer required');
 const arr = (v: unknown, max = 10000): any[] => Array.isArray(v) && v.length <= max ? v : fail('bounded array required');
 const unique = (v: unknown[]): void => { if (new Set(v).size !== v.length) fail('duplicate identity'); };
-const close = (a: number, b: number): boolean => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b));
-const nullablePair = (lo: unknown, hi: unknown, center: number): void => {
+const close = (a: number, b: number): boolean => Number.isFinite(a) && Number.isFinite(b) && Number.isFinite(a - b) && Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b));
+const nullablePair = (lo: unknown, hi: unknown): void => {
   if (lo === null && hi === null) return;
   if (num(lo) > num(hi)) fail('interval endpoint order');
 };
 export function interpolate(curve: Knot[], x: number): number {
-  if (x < curve[0].x || x > curve[curve.length - 1].x) return NaN;
+  if (!Number.isFinite(x) || x < curve[0].x || x > curve[curve.length - 1].x) return NaN;
   const j = curve.findIndex(k => k.x >= x);
   if (j === 0) return curve[0].y;
   const a = curve[j - 1], b = curve[j];
-  return a.y + (b.y - a.y) * (x - a.x) / (b.x - a.x);
+  const rise = b.y - a.y, offset = x - a.x, run = b.x - a.x;
+  const value = a.y + rise * (offset / run);
+  return [rise, offset, run, value].every(Number.isFinite) ? value : NaN;
 }
-export function validateBundle(input: unknown): Bundle {
+/** Conservative completion gate: a season ending this calendar year opens July 1 UTC. */
+export function lastCompletedSeason(asOf: Date = new Date()): number {
+  if (!(asOf instanceof Date) || !Number.isFinite(asOf.getTime())) fail('as-of date');
+  return asOf.getUTCFullYear() - (asOf.getUTCMonth() < 6 ? 1 : 0);
+}
+/** Shared by build files and streamed browser responses; limits count UTF-8 bytes. */
+export function parseJSONBytes(bytes: Uint8Array, limit: number): unknown {
+  if (bytes.byteLength > limit) fail('payload byte limit');
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+}
+export async function readJSONResponse(response: Response, limit: number): Promise<unknown> {
+  if (!response.ok || !response.body) fail('missing response body');
+  const length = response.headers.get('Content-Length');
+  if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > limit)) {
+    await response.body.cancel(); fail('response length');
+  }
+  const reader = response.body.getReader(), chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value.byteLength > limit - total) { await reader.cancel(); fail('payload byte limit'); }
+      chunks.push(value); total += value.byteLength;
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return parseJSONBytes(bytes, limit);
+}
+export function validateBundle(input: unknown, asOf: Date = new Date()): Bundle {
   const b = obj(input);
   // Reject provider salary-derived outcomes anywhere, even in otherwise unused metadata.
   const forbidden = /fair.?salary|surplus|wins.?over.?contract/i;
@@ -50,7 +85,7 @@ export function validateBundle(input: unknown): Bundle {
   const d = obj(b.definitions); ['salary', 'eligibility', 'uncertainty'].forEach(k => str(d[k])); arr(d.limitations, 40).forEach(x => str(x));
   const views = arr(b.views, 200); if (!views.length) fail('no views'); unique(views.map(v => obj(v).id));
   views.forEach(v => {
-    obj(v); const end = int(v.endSeason); if (end < 2010 || end > new Date().getFullYear() + 1) fail('season');
+    obj(v); const end = int(v.endSeason); if (end < 2010 || end > lastCompletedSeason(asOf)) fail('season');
     if (![1, 3, 5].includes(v.window) || v.id !== `${end}-${v.window}`) fail('window identity');
     if (v.representation !== (v.window === 1 ? 'player-season' : 'player-window')) fail('representation');
     if (arr(v.seasons, 5).length !== v.window || v.seasons.some((s: unknown, i: number) => s !== end - v.window + i + 1)) fail('window seasons');
@@ -64,19 +99,19 @@ export function validateBundle(input: unknown): Bundle {
       const model = obj(v.models[m]); ['name', 'method', 'validation', 'intervalLabel'].forEach(k => str(model[k]));
       const curve = arr(model.curve, 2000); if (curve.length < 2) fail('curve missing');
       curve.forEach((k, i) => {
-        obj(k); nonneg(k.x); num(k.y); if (i && k.x <= curve[i - 1].x) fail('curve order');
-        nullablePair(k.low, k.high, k.y); if ((k.low === null) !== (curve[0].low === null)) fail('mixed curve interval availability');
+        obj(k); nonneg(k.x); num(k.y); if (i && (k.x <= curve[i - 1].x || !Number.isFinite(k.y - curve[i - 1].y))) fail('curve order or arithmetic');
+        nullablePair(k.low, k.high); if ((k.low === null) !== (curve[0].low === null)) fail('mixed curve interval availability');
         const e = obj(k.extraMillion); int(e.nStart); int(e.nEnd);
         if (e.supported === true) {
           if (!e.nStart || !e.nEnd || e.reason !== null) fail('contrast support');
-          num(e.estimate); nullablePair(e.low, e.high, e.estimate);
+          num(e.estimate); nullablePair(e.low, e.high);
         } else if (e.supported === false) {
           if (e.estimate !== null || e.low !== null || e.high !== null) fail('unsupported contrast carries result'); str(e.reason);
         } else fail('contrast support flag');
       });
       curve.forEach(k => {
         if (k.extraMillion.supported) {
-          const finish = k.x + 1e6 / v.referenceCapUsd;
+          const finish = num(k.x + num(1e6 / v.referenceCapUsd));
           if (finish > curve[curve.length - 1].x || !close(k.extraMillion.estimate, interpolate(curve, finish) - k.y)) fail('contrast differs from visible reference');
         }
       });
@@ -91,13 +126,23 @@ export function validateBundle(input: unknown): Bundle {
       metrics.forEach(m => { num(p[m]); num(p.fitted[m]); num(p.residual[m]); if (!close(p.fitted[m], interpolate(v.models[m].curve, p.salaryCapShare)) || !close(p.residual[m], p[m] - p.fitted[m])) fail('visible reference or residual mismatch'); });
     });
     const teams = arr(v.teams, 40); unique(teams.map(t => obj(t).team));
-    teams.forEach(t => { str(t.team, 30); if (t.status === 'unavailable') { if (t.salaryUsd !== null || t.war !== null) fail('unavailable team carries totals'); } else if (t.status === 'attributable-sample') { nonneg(t.salaryUsd); num(t.war); } else fail('team attribution status'); int(t.attributablePlayerSeasons); int(t.eligiblePlayerSeasons); int(t.excludedTradeCount); int(t.excludedMissingCount); str(t.note); if (t.attributablePlayerSeasons > t.eligiblePlayerSeasons) fail('team coverage'); });
+    teams.forEach(t => {
+      str(t.team, 30); int(t.attributablePlayerSeasons); int(t.eligiblePlayerSeasons);
+      if (t.status === 'unavailable') {
+        if (t.salaryUsd !== null || t.war !== null) fail('unavailable team carries totals');
+      } else if (t.status === 'attributable-sample') {
+        if (t.attributablePlayerSeasons === 0) fail('finite team totals need attributed observations');
+        nonneg(t.salaryUsd); num(t.war);
+      } else fail('team attribution status');
+      int(t.excludedTradeCount); int(t.excludedMissingCount); str(t.note);
+      if (t.attributablePlayerSeasons > t.eligiblePlayerSeasons) fail('team coverage');
+    });
   });
   if (!views.some(v => v.id === b.defaultView)) fail('default view unavailable');
   return b as Bundle;
 }
 /** The manifest lists availability only; unloaded observations have not been checked. */
-export function validateIndex(input: unknown): ViewIndex {
+export function validateIndex(input: unknown, asOf: Date = new Date()): ViewIndex {
   const index = obj(input);
   if (index.schemaVersion !== 'moneyball.index.v1') fail('index schema');
   str(index.dataVersion, 200); str(index.defaultView, 30);
@@ -105,21 +150,21 @@ export function validateIndex(input: unknown): ViewIndex {
   unique(views.map(v => obj(v).id));
   views.forEach(v => {
     const end = int(v.endSeason);
-    if (end < 2010 || end > new Date().getFullYear() + 1 || ![1, 3, 5].includes(v.window) || v.id !== `${end}-${v.window}`) fail('index view identity');
+    if (end < 2010 || end > lastCompletedSeason(asOf) || ![1, 3, 5].includes(v.window) || v.id !== `${end}-${v.window}`) fail('index view identity');
     if (v.url !== `/data/moneyball/v1/views/${v.id}.json`) fail('index URL');
   });
   if (!views.some(v => v.id === index.defaultView)) fail('index default unavailable');
   return index as ViewIndex;
 }
-export function validateViewBundle(input: unknown, expected: IndexView, dataVersion: string): Bundle {
-  const bundle = validateBundle(input);
+export function validateViewBundle(input: unknown, expected: IndexView, dataVersion: string, asOf: Date = new Date()): Bundle {
+  const bundle = validateBundle(input, asOf);
   if (bundle.dataVersion !== dataVersion || bundle.views.length !== 1 || bundle.defaultView !== expected.id) fail('view version or identity');
   const view = bundle.views[0];
   if (view.id !== expected.id || view.endSeason !== expected.endSeason || view.window !== expected.window) fail('view differs from index');
   return bundle;
 }
 /** Used by the UI: stale completions can populate the validated cache but never render. */
-export function createViewLoader(index: ViewIndex, read: (url: string) => Promise<unknown>) {
+export function createViewLoader(index: ViewIndex, read: (url: string) => Promise<unknown>, asOf: Date = new Date()) {
   let generation = 0;
   const cache = new Map<string, Bundle>();
   return {
@@ -130,7 +175,7 @@ export function createViewLoader(index: ViewIndex, read: (url: string) => Promis
       if (!expected) fail('requested view unavailable');
       try {
         let bundle = cache.get(id);
-        if (!bundle) { bundle = validateViewBundle(await read(expected.url), expected, index.dataVersion); cache.set(id, bundle); }
+        if (!bundle) { bundle = validateViewBundle(await read(expected.url), expected, index.dataVersion, asOf); cache.set(id, bundle); }
         return ticket === generation ? bundle : null;
       } catch (error) { if (ticket === generation) throw error; return null; }
     },
@@ -171,18 +216,16 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('y-label', 'Contribution · awaiting selected view'); txt('x-label', 'Compensation · awaiting selected view');
     status.textContent = message; get('empty').hidden = false; get('live-table').hidden = true; get('snapshot').hidden = false;
   }
-  async function readJSON(path: string, limit = 2_000_000): Promise<unknown> {
+  async function readJSON(path: string, limit = VIEW_BYTE_LIMIT): Promise<unknown> {
     const url = new URL(path, location.origin); if (url.origin !== location.origin) throw new Error('origin');
     const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
-    if (!response.ok) throw new Error('missing');
-    const raw = await response.text(); if (raw.length > limit) throw new Error('size');
-    return JSON.parse(raw);
+    return readJSONResponse(response, limit);
   }
   async function loadIndex() {
     const ticket = ++request; loader?.cancel(); index = null; loader = null;
     failure('Loading available seasons and windows…');
     try {
-      const catalog = validateIndex(await readJSON(INDEX_URL, 100_000)); if (ticket !== request) return;
+      const catalog = validateIndex(await readJSON(INDEX_URL, INDEX_BYTE_LIMIT)); if (ticket !== request) return;
       index = catalog; loader = createViewLoader(catalog, readJSON);
       const initial = catalog.views.find(v => v.id === catalog.defaultView)!;
       season.replaceChildren(...[...new Set(catalog.views.map(v => v.endSeason))].sort((a, b) => b - a).map(y => option(String(y), seasonLabel(y))));

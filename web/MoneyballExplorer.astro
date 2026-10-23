@@ -2,17 +2,15 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import DefinitionHelp from './DefinitionHelp.astro';
-import { INDEX_URL, validateIndex, validateViewBundle, viewLabel, metricLabel, salaryCoverage, decimal, money, type Bundle } from './moneyball';
+import { INDEX_URL, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, parseJSONBytes, validateIndex, validateViewBundle, viewLabel, metricLabel, salaryCoverage, decimal, money, type Bundle } from './moneyball';
 let data: Bundle | null = null;
 let state = 'Reviewed salary and contribution records are not available. No player findings are shown.';
 try {
-  const rawIndex = await readFile(resolve(process.cwd(), `public${INDEX_URL}`), 'utf8');
-  if (rawIndex.length > 100_000) throw new Error('Index exceeds boundary');
-  const index = validateIndex(JSON.parse(rawIndex));
+  const rawIndex = await readFile(resolve(process.cwd(), `public${INDEX_URL}`));
+  const index = validateIndex(parseJSONBytes(rawIndex, INDEX_BYTE_LIMIT));
   const initial = index.views.find(v => v.id === index.defaultView)!;
-  const rawView = await readFile(resolve(process.cwd(), `public${initial.url}`), 'utf8');
-  if (rawView.length > 2_000_000) throw new Error('View exceeds boundary');
-  data = validateViewBundle(JSON.parse(rawView), initial, index.dataVersion);
+  const rawView = await readFile(resolve(process.cwd(), `public${initial.url}`));
+  data = validateViewBundle(parseJSONBytes(rawView, VIEW_BYTE_LIMIT), initial, index.dataVersion);
   state = `${data.publication.status === 'private-preview' ? 'Private preview' : 'Reviewed export'} · ${viewLabel(data.views[0])}`;
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') state = 'The player export failed validation. No results are shown; the export must be corrected.';
