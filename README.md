@@ -8,7 +8,7 @@ The first release covers completed regular seasons. Playoffs are deferred. Salar
 
 ## Reproduction
 
-Run scripts from the repository root. The pipeline uses R with `dplyr`, `tibble`, `jsonlite`, `httr2` and `mgcv`. It does not install packages automatically. Provider snapshots, manifests and private analysis artifacts remain outside Git.
+Run scripts from the repository root. The pipeline uses R 4.6 or newer (for its checksum helper) with `dplyr`, `tibble`, `jsonlite`, `httr2` and `mgcv`. It does not install packages automatically. Provider snapshots, manifests and private analysis artifacts remain outside Git.
 
 Run the offline syntax and boundary checks:
 
@@ -36,6 +36,32 @@ Rscript scripts/acquire-salaries.R --season=2025-26 --offline
 
 The scripts print private artifact paths and missingness counts. Tests use clearly marked artificial fixtures; those fixtures are not NBA results and must never become a published analysis.
 
+The browser boundary tests use Node 24's native TypeScript support:
+
+```sh
+node --test web/moneyball.test.mjs
+```
+
+After acquisition completes, run the offline analysis and create private browser exports:
+
+```sh
+Rscript scripts/analyze.R
+```
+
+`--pilot-only` times a small bootstrap run without creating browser results. `--all-views` requires cached metric snapshots and completed document acquisition for every supported season from 2009–10 through 2025–26. It builds the available one-, three- and five-season windows. An unavailable annual salary remains an explicit exclusion even when its document was successfully acquired.
+
+## Analysis protocol
+
+The main playing-time rule is 200 total minutes and five games across the selected window. It is a practical sample rule, not a proven threshold for reliable player ratings. Broader and stricter rules test sensitivity.
+
+For each outcome and window, compare an intercept-only baseline, a straight line and an unconstrained five-basis spline. Five-fold validation holds out entire players, uses the same partitions for competing models and prefers a simpler fit when errors are close. A second fixed partition checks nonconstant selections. The analysis neither forces a rising curve nor assumes diminishing returns.
+
+Single-season points pair nominal salary with that season's contribution. Multi-season points use average salary cap share, provider-exposure-weighted LEBRON and average WAR over exactly the same observed active seasons. Missing salary in any observed active season excludes that player's aggregate. Reference dollars translate average cap share using the ending season's cap. A shorter observed history stays visible beside the point.
+
+The above/below-reference value is the vertical distance from the displayed curve. The extra-$1m result compares two points on that same curve. Both spending positions need local observations and bracketing support; sparse ranges stay unavailable. Player/team filters never refit this reference.
+
+Whole-player bootstrap refits provide approximate pointwise resampling bands, conditional on supplied scores, the matched sample and selected model family. They do not measure errors in individual player scores, establish causal spending effects or include full model-selection uncertainty. Eligibility, weighting, support, influence and separate out-of-season diagnostics assess different limits; they are not forecasts.
+
 ## Data and interpretation
 
 - [BBall Index's public LEBRON dashboard](https://fanspo.com/bbi-role-explorer/lebron) supplies the rate and WAR fields. Salary-derived provider scores are excluded from the contribution measures.
@@ -49,6 +75,10 @@ A point above the league reference means more measured contribution than the ref
 ## Website integration
 
 The `web/` directory contains the portable Astro component, native TypeScript chart and project entry. The chart expects a validated, versioned same-origin data bundle. Missing or invalid data must produce an explicit unavailable state; no demonstration NBA results are substituted. Analysis and publication checks precede the release of any real browser bundle.
+
+The browser loads a small availability index and one selected view at a time. Private exports remain in ignored analysis outputs. A draft page alone does not protect files in a website's public directory: private review data must stay in an isolated local preview until release checks pass.
+
+Completed-season snapshots refresh through an explicit acquisition and review, preserving their previous versions. No automatic refresh is enabled. A future current-season mode would need a separate year-to-date label, eligibility and staleness checks; a weekly refresh is a proposed starting schedule, not an enabled feature.
 
 ## License
 
