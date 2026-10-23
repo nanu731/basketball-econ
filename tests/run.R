@@ -147,4 +147,43 @@ test("private export round-trip preserves unavailable salaries and prohibits rel
   expect_error(write_private_dataset(dataset, dirname(files$dataset_path)), "summary checksum")
 })
 
+test("earnings parser follows only the requested parent's historical salary references", {
+  bytes <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
+  result <- normalize_earnings(bytes, "1641705")
+  stopifnot(nrow(result$records) == 2L,
+            setequal(result$records$salary_record_id, c("fixture-2025", "fixture-2026")),
+            result$records$salary_reported_usd[result$records$season == "2024-25"] == 1234567,
+            is.na(result$records$salary_reported_usd[result$records$season == "2025-26"]),
+            result$records$source_salary_status[result$records$season == "2025-26"] == "unsupported_zero",
+            result$data_origin == "test_fixture")
+  expect_error(normalize_earnings(bytes, "2544"), "requested NBA player")
+})
+
+test("earnings snapshots replay offline and reject altered source bodies", {
+  bytes <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
+  cache <- tempfile("basketball-earnings-test-")
+  snapshot <- acquire_earnings("1641705", "TEST_FIXTURE_PLAYER_A", cache_dir = cache,
+    transport = function(url) list(bytes = bytes, response_url = url))
+  replay <- acquire_earnings("1641705", "TEST_FIXTURE_PLAYER_A", cache_dir = cache, offline = TRUE)
+  stopifnot(identical(snapshot$records, replay$records))
+  writeBin(charToRaw("changed"), file.path(cache, snapshot$provenance$response_file))
+  expect_error(read_earnings_snapshot(snapshot$manifest_path), "checksum")
+})
+
+test("multiple historical amounts remain unresolved and zero placeholders stay missing", {
+  bytes <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
+  snapshot <- normalize_earnings(bytes, "1641705")
+  snapshot$provenance <- list(source_url = "https://example.invalid/synthetic-fixture", publication_status = "test_only")
+  duplicate <- snapshot$records[snapshot$records$season == "2024-25", ]
+  duplicate$salary_record_id <- "TEST_FIXTURE_SECOND_ANNUAL_RECORD"
+  duplicate$salary_reported_usd <- 500000
+  snapshot$records <- rbind(snapshot$records, duplicate)
+  cohort <- tibble::tibble(season = c("2024-25", "2025-26"), nba_id = c(1641705L, 1641705L))
+  imported <- earnings_salary_import(list(snapshot), cohort, c("2024-25", "2025-26"))
+  reconciled <- reconcile_salary_imports(list(imported), FANSPO_SALARY_DEFINITION)
+  stopifnot(all(is.na(reconciled$players$salary_reported_usd)),
+            reconciled$players$salary_status[reconciled$players$season == "2024-25"] == "multiple_source_records",
+            reconciled$players$salary_status[reconciled$players$season == "2025-26"] == "unsupported_zero")
+})
+
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))

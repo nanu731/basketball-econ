@@ -74,6 +74,9 @@ reconcile_salary_imports <- function(imports = list(), definition_id = NULL) {
     stop("Cannot reconcile different salary definitions", call. = FALSE)
   }
   records <- dplyr::bind_rows(lapply(imports, `[[`, "records"))
+  if (!"source_salary_status" %in% names(records)) {
+    records$source_salary_status <- ifelse(is.na(records$salary_reported_usd), "missing_amount", "reported_amount")
+  }
   unmapped <- records[is.na(records$nba_id), ]
   mapped <- records[!is.na(records$nba_id), ]
   groups <- split(seq_len(nrow(mapped)), paste(mapped$season, mapped$nba_id))
@@ -81,7 +84,12 @@ reconcile_salary_imports <- function(imports = list(), definition_id = NULL) {
     rows <- mapped[indices, ]
     values <- unique(rows$salary_reported_usd[!is.na(rows$salary_reported_usd)])
     reported <- sum(!is.na(rows$salary_reported_usd))
-    status <- if (!length(values)) "missing_salary" else if (length(values) > 1L) "conflict" else if (reported > 1L) "agreed" else "single_source"
+    reasons <- sort(unique(rows$source_salary_status))
+    unresolved <- c("multiple_source_records", "unsupported_zero", "invalid_negative", "invalid_amount",
+                    "non_nba_or_unknown_league", "acquisition_unavailable", "missing_historical_season")
+    reason <- unresolved[unresolved %in% reasons]
+    status <- if (!length(values)) { if (length(reason)) reason[1] else "missing_salary" } else
+      if (length(values) > 1L) "conflict" else if (reported > 1L) "agreed" else "single_source"
     tibble::tibble(season = rows$season[1], nba_id = rows$nba_id[1],
                    salary_reported_usd = if (length(values) == 1L) values else NA_real_,
                    salary_status = status, reported_sources = reported,

@@ -44,7 +44,7 @@ match_player_seasons <- function(metrics, salaries, caps = official_caps()) {
        coverage = coverage, salary_only = salary_only, unmapped_salaries = salaries$unmapped,
        source_provenance = list(metrics = metrics$provenance, salaries = salaries$provenance,
                                 salary_definition_id = salaries$definition_id),
-       salary_label = "Reported season salary",
+       salary_label = if (length(salaries$provenance) == 1L && !is.null(salaries$provenance[[1]]$display_label)) salaries$provenance[[1]]$display_label else "Reported season salary",
        model_status = "not_fitted", eligibility_status = "not_assessed",
        publication_status = "unreviewed_do_not_publish")
 }
