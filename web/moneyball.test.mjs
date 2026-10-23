@@ -447,7 +447,7 @@ test('unsupported comparisons never carry zero results and null ranges remain un
   knot.extraMillion = contrast(false); knot.extraMillion.reason = 'insufficient_bracketing';
   const unsupported = salaryComparison(view, 'war', knot);
   assert.match(unsupported.difference, /Comparison unavailable.*not enough nearby salaries/);
-  assert.doesNotMatch(unsupported.difference, /0\.00/); assert.match(unsupported.range, /Unavailable.*not enough nearby salaries/);
+  assert.doesNotMatch(unsupported.difference, /0\.00/); assert.equal(unsupported.range, 'Unavailable');
   knot.extraMillion = { ...contrast(true, -.25), low: null, high: null };
   const noRange = salaryComparison(view, 'war', knot);
   assert.equal(noRange.difference, '−0.25 estimated wins'); assert.equal(noRange.range, 'Unavailable');
@@ -500,9 +500,9 @@ test('unsupported scenarios retain exact salaries but hide both endpoints and jo
   knot.extraMillion.reason = 'insufficient_bracketing';
   const copy = salaryComparison(view, 'war', knot);
   assert.equal(copy.lower, '$20,000,000'); assert.equal(copy.higher, '$21,000,000');
-  for (const field of ['lowerContribution', 'higherContribution', 'difference', 'range']) {
-    assert.match(copy[field], /not enough nearby salaries/); assert.doesNotMatch(copy[field], /NaN|About|0\.00/);
-  }
+  for (const field of ['lowerContribution', 'higherContribution', 'range', 'precision']) assert.equal(copy[field], 'Unavailable');
+  assert.match(copy.difference, /not enough nearby salaries/);
+  assert.equal([copy.lowerContribution, copy.higherContribution, copy.difference, copy.range, copy.precision].join(' ').match(/not enough nearby salaries/g).length, 1);
   const supported = view.models.war.curve[0]; supported.extraMillion.low = null; supported.extraMillion.high = null;
   const noRange = salaryComparison(view, 'war', supported);
   assert.match(noRange.lowerContribution, /^About/); assert.match(noRange.higherContribution, /^About/); assert.equal(noRange.range, 'Unavailable');

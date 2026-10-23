@@ -346,7 +346,7 @@ export function salaryComparison(view: View, metric: Metric, knot: Knot) {
   const model = view.models[metric];
   const unit = metric === 'war' ? view.window > 1 ? 'estimated wins/observed season' : 'estimated wins' : 'impact points/100 possessions';
   const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${decimal(Math.abs(value))}`;
-  const unavailable = `Unavailable. ${readableReason(result.reason)}`;
+  const unavailable = 'Unavailable';
   // Endpoint values follow the visible interpolant; the exported joint contrast remains authoritative.
   const lower = result.supported ? interpolate(model.curve, knot.x) : null;
   const higher = result.supported ? interpolate(model.curve, knot.x + 1e6 / view.referenceCapUsd) : null;
@@ -362,7 +362,7 @@ export function salaryComparison(view: View, metric: Metric, knot: Knot) {
     support: `${result.nStart} near the lower salary; ${result.nEnd} near the higher salary`,
     shape: model.name === 'Straight line' ? 'The estimated step is the same at every supported salary because the fitted relationship is a straight line.' : 'Choose another lower salary to compare two points on the same league reference.',
     unitNote: metric === 'war' ? 'WAR estimates wins above a readily available fill-in player, not the team’s actual wins.' : 'LEBRON estimates impact relative to league average per 100 possessions, not points actually scored.',
-    precision: result.supported ? `${model.name}. Lower estimate: ${lower}; higher estimate: ${higher}; exported difference: ${result.estimate}; joint range: ${result.low === null ? 'unavailable' : `${result.low} to ${result.high}`}.` : `${model.name}. ${unavailable}`,
+    precision: result.supported ? `${model.name}. Lower estimate: ${lower}; higher estimate: ${higher}; exported difference: ${result.estimate}; joint range: ${result.low === null ? 'unavailable' : `${result.low} to ${result.high}`}.` : unavailable,
     aria: `Lower salary ${preciseSalaryFormatter.format(start)}, higher salary ${preciseSalaryFormatter.format(end)}; ${difference}`,
   };
 }

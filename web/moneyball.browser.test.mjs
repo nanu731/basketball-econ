@@ -100,7 +100,12 @@ async function mountedScenario() {
         check(q('contrast-lowerContribution').textContent.startsWith(`About ${dec(knot.y)} `) && q('contrast-higherContribution').textContent.startsWith(`About ${dec(higher)} `), 'Paired estimates differ from visible interpolation');
         check(q('contrast-readout').textContent.startsWith(`${signed(result.estimate)} `), 'Difference is not the exported joint contrast');
         check(result.low === null ? q('contrast-range').textContent === 'Unavailable' : q('contrast-range').textContent.startsWith(`${signed(result.low)} to ${signed(result.high)} `), 'Range is not the exported joint interval');
-      } else check(['lowerContribution', 'higherContribution', 'range'].every(f => q(`contrast-${f}`).textContent.startsWith('Unavailable')), 'Unsupported numeric estimates leaked');
+      } else {
+        check(['lowerContribution', 'higherContribution', 'range', 'precision'].every(f => q(`contrast-${f}`).textContent === 'Unavailable'), 'Unsupported numeric estimates or repeated warning leaked');
+        const reason = q('contrast-readout').textContent.replace('Comparison unavailable. ', '');
+        check(reason && q('extra').textContent.split(reason).length === 2, 'Unsupported reason is missing or repeated');
+      }
+      check(Math.abs(q('contrast-lower').getBoundingClientRect().top - q('contrast-higher').getBoundingClientRect().top) < 1 && Math.abs(q('contrast-lowerContribution').getBoundingClientRect().top - q('contrast-higherContribution').getBoundingClientRect().top) < 1, 'Paired salary or contribution values lost shared-row alignment');
     };
     q('extra').open = true; pairedComparison(one, 'war');
     check(document.documentElement.scrollWidth <= innerWidth + 1 && q('extra').querySelector('.mb-scenarios').getBoundingClientRect().width <= q('extra').getBoundingClientRect().width, 'Worked comparison overflows the page');

@@ -98,10 +98,15 @@ try {
     <p>Choose two salaries $1 million apart and compare the contribution estimated by the league line.</p>
     <p class="mb-small" data-mb-contrast-context></p>
     <label class="mb-spending">Choose the lower salary: <span data-mb-contrast-start></span><input id="mb-spending" type="range" min="0" max="0" step="1" value="0" data-mb-spending disabled /></label>
-    <div class="mb-scenarios" aria-label="Two salaries on the fitted league line">
-      <dl><dt>Lower salary</dt><dd data-mb-contrast-lower></dd><dt>Modeled contribution</dt><dd data-mb-contrast-lowerContribution></dd></dl>
-      <dl><dt>Higher salary · $1m more</dt><dd data-mb-contrast-higher></dd><dt>Modeled contribution</dt><dd data-mb-contrast-higherContribution></dd></dl>
-    </div>
+    <table class="mb-scenarios">
+      <caption class="mb-sr">Two salaries on the fitted league line and their modeled contribution</caption>
+      <thead><tr><th scope="col" id="mb-scenario-lower">Lower salary</th><th scope="col" id="mb-scenario-higher">Higher salary · $1m more</th></tr></thead>
+      <tbody>
+        <tr><td headers="mb-scenario-lower" data-mb-contrast-lower></td><td headers="mb-scenario-higher" data-mb-contrast-higher></td></tr>
+        <tr><th colspan="2" id="mb-scenario-contribution">Modeled contribution</th></tr>
+        <tr><td headers="mb-scenario-lower mb-scenario-contribution" data-mb-contrast-lowerContribution></td><td headers="mb-scenario-higher mb-scenario-contribution" data-mb-contrast-higherContribution></td></tr>
+      </tbody>
+    </table>
     <p class="mb-small"><DefinitionHelp id="mb-modeled-contribution" label="Modeled contribution"><span data-mb-contrast-unitNote></span> These are fitted league-line estimates, not observed players.</DefinitionHelp> estimates are rounded; the difference uses unrounded values.</p>
     <div class="mb-pay-comparison"><p>Difference for the extra $1 million</p><p data-mb-contrast-readout>No salary comparison is loaded.</p></div>
     <p class="mb-small"><DefinitionHelp id="mb-difference-range" label="Estimated range for this difference">The range uses both fitted points jointly and treats the supplied player scores as fixed. It does not include uncertainty in the provider’s player scores.</DefinitionHelp>: <strong data-mb-contrast-range></strong></p>
@@ -283,11 +288,12 @@ try {
   .moneyball details > p { max-width: 75ch; }
   .mb-extra { max-width: 52rem; padding-bottom: var(--space-s); }
   .moneyball .mb-extra > p { font-size: 1rem; margin-block: var(--space-2xs); }
-  .mb-scenarios { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-s); border-block: var(--mb-rule); margin-top: var(--space-xs); }
-  .mb-scenarios dl { margin: var(--space-xs) 0; min-width: 0; }
-  .mb-scenarios dt { font-size: var(--type-small); line-height: 1.4; margin-top: var(--space-xs); }
-  .mb-scenarios dt:first-child { font-weight: 600; margin-top: 0; }
-  .mb-scenarios dd { margin: var(--space-2xs) 0 0; font: 1rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .mb-scenarios { table-layout: fixed; width: 100%; border-block: var(--mb-rule); margin-top: var(--space-xs); }
+  .mb-scenarios th, .mb-scenarios td { min-width: 0; padding: var(--space-xs) var(--space-2xs); border: 0; background: transparent; overflow-wrap: anywhere; }
+  .mb-scenarios th { font: 600 .875rem/1.4 var(--font-body); }
+  .mb-scenarios td { font: 1rem/1.4 var(--font-numeric); }
+  .mb-scenarios tbody tr:first-child td { padding-top: 0; }
+  .mb-scenarios tbody tr:last-child td { padding-top: 0; }
   .mb-pay-comparison [data-mb-contrast-readout] { font-size: 1.25rem; font-weight: 600; }
   [data-mb-contrast-precision] { overflow-wrap: anywhere; }
   .mb-pay-comparison p { margin: var(--space-2xs) 0; font: 1.125rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; }
