@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -186,4 +186,52 @@ test('nice y ticks handle negative and flat domains without fabricating zero out
 
 test('default WAR-scale domain keeps readable five-win ticks on both sides of zero', () => {
   assert.deepEqual(niceTicks(-5.5, 14.7), [-5, 0, 5, 10]);
+});
+
+test('salary coverage distinguishes retained matched seasons from playing-time eligibility', () => {
+  const view = fixture().views[0]; view.coverage.eligible = 9;
+  const copy = salaryCoverage(view);
+  assert.match(copy, /1 matched active player-seasons retained from 2 active source player-seasons/);
+  assert.match(copy, /1 player-seasons have unknown salary/);
+  assert.doesNotMatch(copy, /eligible/);
+  assert.equal(copy.match(/unknown salary/g)?.length, 1);
+});
+
+test('a unique nonempty name search selects its player without another action', () => {
+  assert.equal(resolvePlayerSelection([{ id: '11' }], '', 'Synthetic name'), '11');
+  assert.equal(resolvePlayerSelection([{ id: '11' }], '22', 'Synthetic name'), '11');
+});
+test('multiple search matches require an explicit choice and preserve a valid prior choice', () => {
+  const shown = [{ id: '11' }, { id: '22' }];
+  assert.equal(resolvePlayerSelection(shown, '', 'Synthetic'), '');
+  assert.equal(resolvePlayerSelection(shown, '22', 'Synthetic'), '22');
+});
+test('an empty search does not auto-select the only remaining player', () => {
+  assert.equal(resolvePlayerSelection([{ id: '11' }], '', ''), '');
+  assert.equal(resolvePlayerSelection([{ id: '11' }], '', '  '), '');
+});
+test('selected NBA identity survives a changed view only while it passes the new filters', () => {
+  const nextViewRows = [{ id: '22' }, { id: '11' }];
+  assert.equal(resolvePlayerSelection(nextViewRows, '11', ''), '11');
+  assert.equal(resolvePlayerSelection([{ id: '22' }], '11', ''), '');
+  assert.equal(resolvePlayerSelection([], '11', 'Synthetic'), '');
+});
+test('phone chart labels show only the selected player while desktop retains automatic labels', () => {
+  const source = fixture().views[0].players[0];
+  const players = Array.from({ length: 8 }, (_, i) => ({ ...source, id: String(i + 1), label: true }));
+  assert.deepEqual(chartLabels(players, '2', 375).map(p => p.id), ['2']);
+  assert.deepEqual(chartLabels(players, '', 375), []);
+  const desktop = chartLabels(players, '2', 800);
+  assert.equal(desktop.length, 6); assert.equal(desktop.at(-1).id, '2');
+  assert.equal(new Set(desktop.map(p => p.id)).size, desktop.length);
+});
+
+test('cached number formatters preserve rounding, negatives, large values and missing-value rejection', () => {
+  for (const value of [1234.567, -1234.567, 987654321.5, -0, 0]) {
+    assert.equal(decimal(value), value.toLocaleString('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 }));
+    assert.equal(money(value), value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }));
+  }
+  assert.equal(decimal(-1234.567), '-1,234.57');
+  assert.equal(money(987654321.5), '$987,654,322');
+  for (const missing of [null, undefined]) { assert.throws(() => decimal(missing), TypeError); assert.throws(() => money(missing), TypeError); }
 });
