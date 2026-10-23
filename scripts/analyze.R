@@ -20,6 +20,10 @@ for (end in rev(ends)) for (window_length in c(1L, 3L, 5L)) {
   analysis <- analyze_player_window(window, sentinel = sentinel, pilot_only = "--pilot-only" %in% args)
   if (!analysis$available) { cat("Unavailable", season, window_length, analysis$reason, "\n"); next }
   analyses[[length(analyses) + 1L]] <- analysis
+  if (!"--pilot-only" %in% args) {
+    diagnostics <- write_private_diagnostics(analysis)
+    cat("Private diagnostics:", diagnostics$directory, "\n")
+  }
   cat("Completed", season, "window", window_length, ":", nrow(window$points), "matched players\n")
   flush.console()
 }
