@@ -28,7 +28,11 @@ browser_model <- function(curve) {
     }, character(1))
     paste0("Seed ", partition$seed, ": ", paste(scores, collapse = "; "), "; one-SE choice ", partition$selected_family)
   }, character(1))
-  knots <- lapply(seq_along(curve$knots), function(i) {
+  # Binary-distinct knots can serialize to the same JSON number. Keep one
+  # display knot per encoded x without changing the fit or bootstrap draws.
+  encoded_x <- jsonlite::fromJSON(rawToChar(json_bytes(curve$knots)))
+  display_indices <- which(!duplicated(encoded_x))
+  knots <- lapply(display_indices, function(i) {
     support <- curve$support[i, ]
     list(x = curve$knots[i], y = curve$expected[i], low = curve$low[i], high = curve$high[i],
       extraMillion = list(supported = support$supported, estimate = curve$contrast[i],

@@ -461,4 +461,18 @@ test("the primary player bootstrap refuses raw repeated-season transport rows", 
     cache_dir = tempfile("basketball-wrong-bootstrap-unit-")), "not repeated season rows")
 })
 
+test("JSON curve knots remain strictly ordered when distinct R doubles encode identically", {
+  window <- synthetic_analysis_window()
+  x <- .0574276985275538
+  window$points$salary_cap_share[1:2] <- c(x, x + 1e-17)
+  analysis <- analyze_player_window(window, cache_dir = tempfile("basketball-json-knots-"), influence = FALSE)
+  curve <- analysis$models$war
+  encoded <- jsonlite::fromJSON(rawToChar(json_bytes(browser_model(curve))))
+  stopifnot(anyDuplicated(jsonlite::fromJSON(rawToChar(json_bytes(curve$knots)))) > 0L,
+            nrow(encoded$curve) < length(curve$knots), all(diff(encoded$curve$x) > 0))
+  inside <- encoded$curve$x >= min(curve$knots) & encoded$curve$x <= max(curve$knots)
+  expected <- visible_interpolation(curve$knots, curve$expected, encoded$curve$x[inside])
+  stopifnot(max(abs(expected - encoded$curve$y[inside])) < 1e-12)
+})
+
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))
