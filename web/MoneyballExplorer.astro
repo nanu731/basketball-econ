@@ -65,9 +65,9 @@ try {
           </dl>
           <p class="mb-small mb-cohort" data-mb-selected-cohort></p>
           <p class="mb-small" data-mb-selected-observed hidden></p>
-          <details class="mb-player-details"><summary>Playing time and record details</summary><p class="mb-small" data-mb-selected-details></p></details>
+          <details class="mb-player-details"><summary>Playing time and records</summary><p class="mb-small" data-mb-selected-details></p></details>
         </div>
-        <p class="mb-small">The percentile ranks the gap, not overall talent, causal value or return per dollar.</p>
+        <p class="mb-small">Rank of the gap, not talent, causal value or return per dollar.</p>
       </aside>
     </div>
     <div class="mb-legend" aria-label="Chart legend"><span><i class="mb-dot-key" aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="League reference">A line fitted to the league's eligible matched records. It compares estimated contribution at different salaries. A player's above/below value is the vertical contribution gap from this line at that player's pay. Filters never refit it.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Estimated range for the curve">The shaded band shows where the fitted league line might sit, treating the provider's player scores as fixed. It does not show uncertainty about an individual player's impact. Technical interval details are in the model notes.</DefinitionHelp></span></div>
@@ -157,7 +157,7 @@ try {
   .mb-controls:disabled { opacity: .7; }
   .mb-secondary > button { align-self: end; font-size: var(--type-small); }
   .mb-note { margin-block: var(--space-xs); max-width: 100%; }
-  .mb-chart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 16rem; border-block: 2px solid var(--green); }
+  .mb-chart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 18rem; border-block: 2px solid var(--green); }
   .mb-plot { min-width: 0; background: var(--sand); padding: var(--space-s) var(--space-xs) var(--space-xs); }
   .mb-y { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2xs); }
   .moneyball .mb-y :global(.definition-trigger) { font-family: var(--font-numeric); min-inline-size: 44px; }
@@ -183,16 +183,18 @@ try {
   .mb-empty h3 { margin: 0 0 var(--space-xs); font-size: var(--type-h3); }
   .mb-empty p { max-width: 35ch; font-size: 1rem; margin: 0 0 var(--space-s); }
   .mb-empty[hidden], [hidden] { display: none !important; }
-  .mb-selection { padding: var(--space-s); border-left: var(--mb-rule); }
-  .mb-selection h3 { font-size: 1.5rem; margin: 0 0 var(--space-xs); }
+  .mb-selection { padding: var(--space-xs); border-left: var(--mb-rule); }
+  .mb-selection h3 { font-size: 1.25rem; line-height: 1.2; margin: 0 0 var(--space-2xs); }
   .mb-selection > p { font-size: 1rem; margin: 0 0 var(--space-s); }
-  .mb-selection > .mb-small { font-size: var(--type-small); }
-  .mb-comparison { display: grid; gap: var(--space-s); margin: 0; }
-  .mb-comparison dt { font-size: var(--type-small); line-height: 1.4; }
-  .mb-comparison dd { margin: var(--space-2xs) 0 0; font-family: var(--font-numeric); font-size: 1rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
-  .mb-cohort { margin-bottom: var(--space-2xs); }
-  .mb-selection .mb-player-details > summary { font: 1rem/1.4 var(--font-body); }
-  .mb-selection [data-mb-selected-observed] { margin-top: var(--space-2xs); }
+  .mb-selection > .mb-small { font-size: var(--type-small); line-height: 1.35; margin: var(--space-2xs) 0 0; }
+  .mb-comparison { display: grid; gap: var(--space-2xs); margin: 0; }
+  .mb-comparison dt { font-size: var(--type-small); line-height: 1.25; }
+  .mb-comparison dd { margin: var(--space-3xs) 0 0; font-family: var(--font-numeric); font-size: var(--type-small); line-height: 1.3; font-variant-numeric: tabular-nums; }
+  /* Panel paragraphs must not inherit the article's long prose margins. */
+  .mb-selection [data-mb-comparison] > p { font-size: var(--type-small); line-height: 1.35; margin: var(--space-3xs) 0; }
+  .mb-selection .mb-player-details { margin: var(--space-3xs) 0 0; }
+  .mb-selection .mb-player-details > summary { min-height: 44px; padding-block: var(--space-3xs); font: 1rem/1.3 var(--font-body); }
+  .mb-comparison :global(.definition-trigger) { min-height: 44px; padding: 0; border: 0; background: transparent; }
   .mb-legend { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-m); font-size: var(--type-small); padding-block: var(--space-xs); }
   .mb-legend > span { display: flex; align-items: center; gap: var(--space-2xs); }
   .mb-dot-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
@@ -224,7 +226,7 @@ try {
   .mb-methods > h2 { font-size: var(--type-h2); }
   .mb-methods > p { max-width: 65ch; }
   .mb-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  @media (max-width: 60rem) { .mb-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-chart-layout { grid-template-columns: minmax(0, 1fr) 14rem; } }
+  @media (max-width: 60rem) { .mb-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mb-chart-layout { grid-template-columns: minmax(0, 1fr) 16rem; } }
   @media (max-width: 44rem) { .mb-phone-hint { display: block; margin-block: 0 var(--space-2xs); font-size: .8125rem; } .mb-heading { display: block; } .mb-heading .mb-small { margin-top: var(--space-2xs); } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-search { grid-column: 1 / -1; } .mb-secondary > button { align-self: end; } .mb-chart-layout { grid-template-columns: minmax(0, 1fr); } .mb-selection { border-left: 0; border-top: var(--mb-rule); } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media print { .mb-controls, .mb-extra, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

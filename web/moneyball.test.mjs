@@ -313,13 +313,15 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
   const player = filterPlayers(view, 'TEST', 'SYNTHETIC 0')[0];
   const annual = playerComparisonCopy(player, 'war', view);
   assert.equal(annual.percentile, '87.5'); assert.match(annual.gap, /2.00 WAR above reference/);
-  assert.match(annual.contribution, /1.50 WAR/); assert.match(annual.salary, /for the season/);
+  assert.match(annual.contribution, /1.50 WAR/); assert.match(annual.salary, /season/);
   assert.match(annual.cohort, /Among 4 eligible matched players/); assert.equal(annual.observed, '');
   const multi = structuredClone(view); multi.window = 3; multi.seasons = [2023, 2024, 2025];
   player.observedSeasons = [2023, 2025];
   const rate = playerComparisonCopy(player, 'lebron', multi);
-  assert.equal(rate.percentile, '12.5'); assert.match(rate.gap, /3.00 LEBRON points \/ 100 possessions below reference/);
+  assert.equal(rate.percentile, '12.5'); assert.match(rate.gap, /3.00 LEBRON below reference/);
+  assert.equal(rate.contribution, '-3.50 points/100 possessions');
   assert.match(rate.cohort, /Among 4 eligible matched players/); assert.equal(rate.observed, 'Based on 2 of 3 seasons');
-  assert.match(rate.salary, /average \/ year/); assert.match(rate.details, /2022–23, 2024–25/);
+  assert.match(rate.salary, /average\/year/); assert.match(rate.details, /2022–23, 2024–25/);
   assert.match(rate.details, /minutes; .* possessions/);
+  assert.match(playerComparisonCopy(player, 'war', multi).contribution, /WAR\/observed season/);
 });

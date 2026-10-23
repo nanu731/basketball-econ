@@ -229,16 +229,17 @@ export function filterPlayers(view: View, team: string, query: string): Player[]
 }
 /** Read existing scores; presentation and filters never calculate a new rank. */
 export function playerComparisonCopy(p: Player, metric: Metric, view: View) {
-  const unit = metric === 'war' ? 'WAR' : 'LEBRON points / 100 possessions';
+  const unit = metric.toUpperCase();
+  const contributionUnit = metric === 'war' ? view.window > 1 ? 'WAR/observed season' : 'WAR' : 'points/100 possessions';
   return {
     name: p.name,
-    salary: `${money(p.salaryUsd)}${view.window > 1 ? ' average / year' : ' for the season'}`,
-    contribution: `${decimal(p[metric])} ${unit}${metric === 'war' && view.window > 1 ? ' / observed season' : ''}`,
+    salary: `${money(p.salaryUsd)}${view.window > 1 ? ' average/year' : ' / season'}`,
+    contribution: `${decimal(p[metric])} ${contributionUnit}`,
     gap: p.residual[metric] === 0 ? `0.00 ${unit} · on the reference` : `${decimal(Math.abs(p.residual[metric]))} ${unit} ${p.residual[metric] > 0 ? 'above' : 'below'} reference`,
     percentile: percentile(p.valuePercentile[metric]),
-    cohort: `Among ${view.players.length} eligible matched players · ${metric.toUpperCase()} · ${viewLabel(view)}`,
+    cohort: `Among ${view.players.length} eligible matched players`,
     observed: view.window > 1 ? `Based on ${p.observedSeasons.length} of ${view.window} seasons` : '',
-    details: `${p.teams.map(t => teamName(t, view.endSeason)).join(', ')}. Observed seasons: ${p.observedSeasons.map(seasonLabel).join(', ')}. ${decimal(p.minutes)} minutes; ${decimal(p.possessions)} possessions. Salary: ${decimal(p.salaryCapShare * 100)}% of ${view.window > 1 ? "average annual cap; dollars use the ending season's cap" : 'the season cap'}. ${p.flags.map(readableReason).join('. ')}`,
+    details: `${metric.toUpperCase()} · ${viewLabel(view)}. ${p.teams.map(t => teamName(t, view.endSeason)).join(', ')}. Observed seasons: ${p.observedSeasons.map(seasonLabel).join(', ')}. ${decimal(p.minutes)} minutes; ${decimal(p.possessions)} possessions. Salary: ${decimal(p.salaryCapShare * 100)}% of ${view.window > 1 ? "average annual cap; dollars use the ending season's cap" : 'the season cap'}. ${p.flags.map(readableReason).join('. ')}`,
   };
 }
 
