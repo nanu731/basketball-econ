@@ -20,7 +20,7 @@ async function mountedScenario() {
   const change = (key, value) => { q(key).value = value; q(key).dispatchEvent(new Event('change', { bubbles: true })); };
   const dots = () => [...q('chart').querySelectorAll('circle[data-player]')];
   const reference = () => q('chart').querySelector('.mb-reference')?.getAttribute('d');
-  const fields = ['salaries', 'context', 'exact', 'range', 'support'];
+  const fields = ['start', 'salaries', 'context', 'exact', 'range', 'support'];
   const choose = player => {
     q('search').value = player.name; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     const option = [...q('suggestions').querySelectorAll('[data-suggestion-index]')].find(el => el.textContent === player.name);
@@ -48,7 +48,19 @@ async function mountedScenario() {
     // Real exports include every player salary as a knot; between-knot interpolation has a separate unit regression.
     await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Mount did not finish');
     const baseline = reference(); check(dots().length === one.players.length, 'Initial cohort count differs');
-    choose(player); connector(); check(dots().length === one.players.length && reference() === baseline, 'Selection lost peers or changed the reference');
+    check(!q('team').closest('details') && !q('window').closest('details') && !q('window-note').closest('details'), 'Team/window context stayed collapsed');
+    const examples = [...q('example-buttons').querySelectorAll('button')];
+    check(examples.length > 0 && examples.length <= 3 && !q('chart').querySelector('.mb-selected'), 'Examples missing or auto-selected');
+    check(examples.every(b => one.players.some(p => p.id === b.dataset.player && p.label)), 'Example was not an eligible labeled player');
+    examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
+    const beforeShortcut = q('search').value; q('find-player').click();
+    check(document.activeElement === q('search') && q('search').value === beforeShortcut && root.querySelectorAll('input[type=search]').length === 1, 'Find shortcut lost continuity or duplicated search');
+    const start = q('contrast-start').textContent; q('spending').value = q('spending').value === '0' ? q('spending').max : '0'; q('spending').dispatchEvent(new Event('input', { bubbles: true }));
+    check(q('contrast-start').textContent && q('contrast-start').textContent !== start, 'Starting salary did not update with slider');
+    choose(player); connector();
+    check(q('selected-reference').textContent.includes(new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(player.fitted.war)), 'Selected reference estimate missing');
+    check(/^[+−]/.test(q('selected-gap').textContent) && q('peer-key').dataset.hollow === 'true' && !q('selected-key').hidden, 'Signed gap or selected legend missing');
+    check(dots().length === one.players.length && reference() === baseline, 'Selection lost peers or changed the reference');
     q('live-table').open = true; await wait(() => q('rows').querySelectorAll('[data-player]').length === one.players.length, 'Selected table lost peers');
     dots().find(el => el.dataset.player === peer.id).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     check(q('chart').querySelector('.mb-selected')?.dataset.player === peer.id && q('search').value === peer.name && dots().length === one.players.length, 'Visible peer cannot be selected'); connector();
@@ -57,17 +69,21 @@ async function mountedScenario() {
     choose(player); change('team', 'NYK');
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
-    check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === expectedRank, 'Team filter changed cohort reference/rank');
+    check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank} / 100`, 'Team filter changed cohort reference/rank');
+    check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
     check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed');
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
+    check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing');
     change('window', '3');
+    check(fields.every(f => q(`contrast-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
     const multiPlayer = multi.players.find(p => p.id === player.id);
-    check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron), 'Window/metric rank stayed stale');
+    check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + ' / 100', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); change('window', '5');
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(fields.every(f => q(`contrast-${f}`).textContent === ''), 'A contrast field stayed stale');
+    check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '', 'Failed view retained new results/actions');
     check(q('spending').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Retry did not recover');

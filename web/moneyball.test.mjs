@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, salaryComparison } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, initialContrastIndex, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, salaryComparison, examplePlayers } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -303,13 +303,13 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
   const view = validateBundle(rankedFixture([-3, 0, 0, 2])).views[0];
   const player = filterPlayers(view, 'TEST', 'SYNTHETIC 0')[0];
   const annual = playerComparisonCopy(player, 'war', view);
-  assert.equal(annual.percentile, '87.5'); assert.match(annual.gap, /2.00 WAR above reference/);
+  assert.equal(annual.percentile, '87.5 / 100'); assert.equal(annual.reference, '-0.50 WAR'); assert.equal(annual.gap, '+2.00 WAR · above reference');
   assert.match(annual.contribution, /1.50 WAR/); assert.match(annual.salary, /season/);
   assert.match(annual.cohort, /Among 4 eligible matched players/); assert.equal(annual.observed, '');
   const multi = structuredClone(view); multi.window = 3; multi.seasons = [2023, 2024, 2025];
   player.observedSeasons = [2023, 2025];
   const rate = playerComparisonCopy(player, 'lebron', multi);
-  assert.equal(rate.percentile, '12.5'); assert.match(rate.gap, /3.00 LEBRON below reference/);
+  assert.equal(rate.percentile, '12.5 / 100'); assert.equal(rate.reference, '-0.50 points/100 possessions'); assert.equal(rate.gap, '−3.00 points/100 possessions · below reference');
   assert.equal(rate.contribution, '-3.50 points/100 possessions');
   assert.match(rate.cohort, /Among 4 eligible matched players/); assert.equal(rate.observed, 'Based on 2 of 3 seasons');
   assert.match(rate.salary, /average\/year/); assert.match(rate.details, /2022–23, 2024–25/);
@@ -318,9 +318,9 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
 });
 
 test('WAR control labels distinguish totals and averages without the long unit phrase', () => {
-  assert.equal(warOptionLabel(1), 'WAR · total');
-  assert.equal(warOptionLabel(3), 'WAR · average');
-  assert.equal(warOptionLabel(5), 'WAR · average');
+  assert.equal(warOptionLabel(1), 'Season contribution · WAR');
+  assert.equal(warOptionLabel(3), 'Average season contribution · WAR');
+  assert.equal(warOptionLabel(5), 'Average season contribution · WAR');
 });
 
 // Pixel coordinates and names below are synthetic collision fixtures.
@@ -451,4 +451,30 @@ test('unsupported comparisons never carry zero results and null ranges remain un
   knot.extraMillion = { ...contrast(true, -.25), low: null, high: null };
   const noRange = salaryComparison(view, 'war', knot);
   assert.equal(noRange.difference, '−0.25 estimated wins'); assert.equal(noRange.range, 'Unavailable');
+});
+
+// All guided-player and comparison observations here are synthetic fixtures.
+test('guided examples use only labeled eligible players from the active team without mutation', () => {
+  const view = fixture().views[0];
+  view.players = Array.from({ length: 6 }, (_, i) => ({ ...structuredClone(view.players[0]), id: String(i), name: `Synthetic ${i}`, teams: [i === 0 ? 'OTHER' : 'TEST'], label: i !== 1 }));
+  const before = structuredClone(view);
+  assert.deepEqual(examplePlayers(view, 'TEST').map(p => p.id), ['2', '3', '4']);
+  assert.equal(examplePlayers(view, '').length, 3);
+  assert.deepEqual(examplePlayers(view, 'ABSENT'), []); assert.deepEqual(view, before);
+  view.players.forEach(p => p.label = false); assert.deepEqual(examplePlayers(view, ''), []);
+});
+test('selected reference and signed gap follow the visible interpolant and preserve stored rank', () => {
+  const view = fixture().views[0], p = view.players[0];
+  // A stored fitted value can differ within the boundary tolerance; presentation uses the painted line.
+  p.fitted.war = -0.50000000001; p.residual.war = -1.49999999999;
+  const before = structuredClone(p), copy = playerComparisonCopy(p, 'war', view);
+  assert.equal(copy.reference, '-0.50 WAR'); assert.equal(copy.gap, '−1.50 WAR · below reference');
+  assert.equal(copy.percentile, '50.0 / 100'); assert.deepEqual(p, before);
+  p.war = -.5; assert.equal(playerComparisonCopy(p, 'war', view).gap, '0.00 WAR · on the reference');
+  view.window = 3; assert.match(playerComparisonCopy(p, 'war', view).reference, /WAR\/observed season/);
+});
+test('slider starting amount is exact and retained for unsupported comparisons', () => {
+  const view = fixture().views[0], knot = view.models.war.curve[2];
+  assert.equal(salaryComparison(view, 'war', knot).start, '$20,000,000');
+  assert.equal(salaryComparison(view, 'war', knot).difference.startsWith('Comparison unavailable'), true);
 });
