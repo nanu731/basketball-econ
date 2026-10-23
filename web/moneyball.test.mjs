@@ -303,13 +303,13 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
   const view = validateBundle(rankedFixture([-3, 0, 0, 2])).views[0];
   const player = filterPlayers(view, 'TEST', 'SYNTHETIC 0')[0];
   const annual = playerComparisonCopy(player, 'war', view);
-  assert.equal(annual.percentile, '87.5 / 100'); assert.equal(annual.reference, '-0.50 WAR'); assert.equal(annual.gap, '+2.00 WAR · above reference');
+  assert.equal(annual.percentile, '87.5 / 100'); assert.equal(annual.reference, '-0.50 WAR'); assert.equal(annual.gap, '+2.00 WAR');
   assert.match(annual.contribution, /1.50 WAR/); assert.match(annual.salary, /season/);
   assert.match(annual.cohort, /Among 4 eligible matched players/); assert.equal(annual.observed, '');
   const multi = structuredClone(view); multi.window = 3; multi.seasons = [2023, 2024, 2025];
   player.observedSeasons = [2023, 2025];
   const rate = playerComparisonCopy(player, 'lebron', multi);
-  assert.equal(rate.percentile, '12.5 / 100'); assert.equal(rate.reference, '-0.50 points/100 possessions'); assert.equal(rate.gap, '−3.00 points/100 possessions · below reference');
+  assert.equal(rate.percentile, '12.5 / 100'); assert.equal(rate.reference, '-0.50 points/100 possessions'); assert.equal(rate.gap, '−3.00 points/100 possessions');
   assert.equal(rate.contribution, '-3.50 points/100 possessions');
   assert.match(rate.cohort, /Among 4 eligible matched players/); assert.equal(rate.observed, 'Based on 2 of 3 seasons');
   assert.match(rate.salary, /average\/year/); assert.match(rate.details, /2022–23, 2024–25/);
@@ -468,9 +468,9 @@ test('selected reference and signed gap follow the visible interpolant and prese
   // A stored fitted value can differ within the boundary tolerance; presentation uses the painted line.
   p.fitted.war = -0.50000000001; p.residual.war = -1.49999999999;
   const before = structuredClone(p), copy = playerComparisonCopy(p, 'war', view);
-  assert.equal(copy.reference, '-0.50 WAR'); assert.equal(copy.gap, '−1.50 WAR · below reference');
+  assert.equal(copy.reference, '-0.50 WAR'); assert.equal(copy.gap, '−1.50 WAR');
   assert.equal(copy.percentile, '50.0 / 100'); assert.deepEqual(p, before);
-  p.war = -.5; assert.equal(playerComparisonCopy(p, 'war', view).gap, '0.00 WAR · on the reference');
+  p.war = -.5; assert.equal(playerComparisonCopy(p, 'war', view).gap, '0.00 WAR');
   view.window = 3; assert.match(playerComparisonCopy(p, 'war', view).reference, /WAR\/observed season/);
 });
 test('slider starting amount is exact and retained for unsupported comparisons', () => {

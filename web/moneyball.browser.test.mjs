@@ -59,7 +59,12 @@ async function mountedScenario() {
     };
     readableMetric();
     check(q('period').textContent.includes('Regular seasons') && q('metric-note').textContent.includes('fill-in'), 'Season scope or plain zero baseline missing');
-    check(!q('team').closest('details') && !q('window').closest('details') && !q('window-note').closest('details'), 'Team/window context stayed collapsed');
+    const contextPanel = q('context-controls');
+    check(contextPanel.tagName === 'DETAILS' && !contextPanel.open && contextPanel.querySelector('summary').textContent === 'Change season, team or time span', 'Named native context disclosure missing or initially open');
+    check(['season', 'team', 'window'].every(k => root.querySelectorAll(`[data-mb-${k}]`).length === 1 && contextPanel.contains(q(k))), 'Context controls duplicated or outside the named panel');
+    check(q('period').textContent.includes('All teams') && !q('period').closest('details') && !q('window-note').closest('details'), 'Collapsed active context is hidden');
+    const hero = document.querySelector('.question-band.band');
+    check(hero && parseFloat(getComputedStyle(hero).paddingTop) <= 12.1 && parseFloat(getComputedStyle(hero).paddingBottom) <= 12.1, 'Project compact hero padding override did not apply');
     const examples = [...q('example-buttons').querySelectorAll('button')];
     check(examples.length > 0 && examples.length <= 3 && !q('chart').querySelector('.mb-selected'), 'Examples missing or auto-selected');
     check(examples.every(b => one.players.some(p => p.id === b.dataset.player && p.label)), 'Example was not an eligible labeled player');
@@ -79,10 +84,11 @@ async function mountedScenario() {
     check(q('chart').querySelector('.mb-selected')?.dataset.player === peer.id && q('search').value === peer.name && dots().length === one.players.length, 'Visible peer cannot be selected'); connector();
     q('search').value = 'zzzz'; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     check(!q('chart').querySelector('.mb-selected') && dots().length === 0 && !q('rows').querySelector('[data-player]'), 'Typing did not clear selection and filter');
-    choose(player); change('team', 'NYK');
+    choose(player); contextPanel.querySelector('summary').click(); check(contextPanel.open && q('team').getBoundingClientRect().height >= 44, 'Native panel did not expose usable controls'); change('team', 'NYK');
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
     check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank} / 100`, 'Team filter changed cohort reference/rank');
+    contextPanel.querySelector('summary').click(); check(!contextPanel.open && q('period').textContent.includes('New York Knicks'), 'Collapsed team context stayed stale');
     check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
     check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
     check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed');
@@ -99,10 +105,13 @@ async function mountedScenario() {
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(fields.every(f => q(`contrast-${f}`).textContent === ''), 'A contrast field stayed stale');
     check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '', 'Failed view retained new results/actions');
+    check(!q('reset').disabled && q('units').disabled, 'Reset lost recovery availability outside the controls fieldset');
     check(q('spending').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`contrast-${f}`).textContent.trim()), 'Retry did not recover');
-    check(!q('spending').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
+    check(!q('spending').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
+    q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
+    check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls');
     document.body.dataset.moneyballTest = 'passed';
   } catch (error) {
     document.body.dataset.moneyballTest = 'failed'; document.body.dataset.moneyballError = encodeURIComponent(error.stack ?? String(error));

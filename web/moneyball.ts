@@ -275,7 +275,7 @@ export function playerComparisonCopy(p: Player, metric: Metric, view: View) {
     salary: `${money(p.salaryUsd)}${view.window > 1 ? ' average/year' : ' / season'}`,
     contribution: `${decimal(p[metric])} ${contributionUnit}`,
     reference: `${decimal(reference)} ${contributionUnit}`,
-    gap: `${gap > 0 ? '+' : gap < 0 ? '−' : ''}${decimal(Math.abs(gap))} ${contributionUnit} · ${gap === 0 ? 'on the reference' : gap > 0 ? 'above reference' : 'below reference'}`,
+    gap: `${gap > 0 ? '+' : gap < 0 ? '−' : ''}${decimal(Math.abs(gap))} ${contributionUnit}`,
     percentile: `${percentile(p.valuePercentile[metric])} / 100`,
     cohort: `Among ${view.players.length} eligible matched players`,
     observed: view.window > 1 ? `Based on ${p.observedSeasons.length} of ${view.window} seasons` : '',
@@ -422,7 +422,7 @@ export function mountMoneyball(root: HTMLElement): void {
   const txt = (key: string, text: string) => { get(key).textContent = text; };
   const option = (value: string, label: string) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; };
   function setControls(ready: boolean) {
-    controls.disabled = !index;
+    controls.disabled = !index; get<HTMLButtonElement>('reset').disabled = !index;
     for (const el of [metric, units, search, team, slider, get<HTMLButtonElement>('find-player')]) el.disabled = !ready;
   }
   function renderSuggestions(scroll = false) {
@@ -452,7 +452,7 @@ export function mountMoneyball(root: HTMLElement): void {
     const chosen = active?.players.find(p => p.id === selected);
     const count = active ? filterPlayers(active, team.value, search.value).length : 0;
     txt('search-result', chosen ? `Selected ${chosen.name}. Other players remain visible for comparison.` : !suggestionsReady(search.value) ?
-      'Type at least two characters. Accents and punctuation are optional.' : count === 0 ?
+      'Type two or more characters to find a player.' : count === 0 ?
       'No players found. Try another name, team or season.' : suggestionModel.state.open ?
       `${count} ${count === 1 ? 'match' : 'matches'}. Use the arrow keys and Enter, or choose a name.` : 'Choose a suggested name to select a player.');
   }
@@ -544,7 +544,7 @@ export function mountMoneyball(root: HTMLElement): void {
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
     metric.options[0].textContent = warOptionLabel(active.window);
     metric.options[1].textContent = active.window === 1 ? 'Impact when playing · LEBRON' : 'Average impact when playing · LEBRON';
-    txt('period', `Regular seasons · ${viewLabel(active)}${active.window > 1 ? ' · averages over observed seasons' : ''}`);
+    txt('period', `Regular seasons · ${viewLabel(active)}${active.window > 1 ? ' · averages over observed seasons' : ''} · ${team.value ? teamName(team.value, active.endSeason) : 'All teams'}`);
     txt('metric-note', m === 'war' ? 'Zero: a readily available fill-in player.' : 'Zero: league-average impact.');
     txt('coverage-summary', `League coverage: ${active.coverage.matched} matched of ${active.coverage.eligible} eligible player records. Filters keep this league denominator fixed.`);
     get('selected-key').hidden = !selected; get('peer-key').dataset.hollow = String(!!selected);
