@@ -20,6 +20,7 @@ assert_observed_export_provenance <- function(window) {
 browser_model <- function(curve) {
   if (length(curve$knots) > 2000L) stop("Browser curve exceeds the reviewed 2000-knot limit", call. = FALSE)
   fit <- curve$fit
+  if (!identical(fit$observation_unit, "player-window")) stop("Transport fits cannot become the main displayed reference", call. = FALSE)
   cv <- vapply(fit$partitions, function(partition) {
     scores <- vapply(seq_len(nrow(partition$scores)), function(i) {
       row <- partition$scores[i, ]
@@ -45,6 +46,11 @@ browser_model <- function(curve) {
 browser_view <- function(analysis) {
   if (!isTRUE(analysis$available) || isTRUE(analysis$pilot_only)) stop("An unavailable model or timing pilot cannot become a browser view", call. = FALSE)
   window <- analysis$window
+  if (!identical(window$exposure_rule$id, prespecified_exposure_rules()$main$id) ||
+      !identical(window$rate_weight, "provider_possessions")) stop("Sensitivity rules cannot silently replace the main browser reference", call. = FALSE)
+  for (model in analysis$models) {
+    if (!setequal(window$points$nba_id, model$fit$nba_ids)) stop("A filtered player subset cannot become a full league browser bundle", call. = FALSE)
+  }
   if (!window$window_length %in% c(1L, 3L, 5L)) stop("Browser supports only 1, 3, and 5-year windows", call. = FALSE)
   points <- window$points
   expected <- lapply(analysis$models, function(model) visible_interpolation(model$knots, model$expected, points$salary_cap_share))

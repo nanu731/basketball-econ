@@ -402,6 +402,63 @@ test("browser export matches the visible reference, splits views and refuses syn
   expect_error(write_private_browser_exports(exports, tempfile("basketball-forged-origin-")), "Fixture content")
   analysis$window$data_origin <- NULL
   expect_error(build_browser_exports(list(analysis)), "explicit observed data origin")
+  filtered <- select_analysis_players(analysis, team = "SAS")
+  expect_error(browser_view(filtered), "filtered player subset")
+})
+
+test("transport validation groups repeated players and identifies its annual target separately", {
+  points <- synthetic_relationship_points("linear", 30L)
+  panel <- dplyr::bind_rows(lapply(c("2023-24", "2024-25", "2025-26"), function(season) {
+    x <- points; x$season <- season; x
+  }))
+  expect_error(fit_salary_relationship(panel, "war"), "one equal-weight point")
+  fit <- fit_salary_relationship(panel, "war", observation_unit = "player-season-transport")
+  predictions <- fit$partitions[[1]]$predictions
+  groups <- split(predictions$fold, predictions$nba_id)
+  stopifnot(all(vapply(groups, function(x) length(unique(x)) == 1L, logical(1))),
+            all(fit$partitions[[1]]$scores$scored_players[fit$partitions[[1]]$scores$available] == 30L),
+            all(fit$partitions[[1]]$scores$scored_observations[fit$partitions[[1]]$scores$available] == 90L))
+  root <- synthetic_window_dataset()
+  root$players <- dplyr::bind_rows(lapply(c("2023-24", "2024-25", "2025-26"), function(season) {
+    tibble::tibble(season = season, nba_id = as.integer(points$nba_id), played = TRUE,
+      minutes = 1000, games = 40, provider_possessions = 2000,
+      salary_cap_share = points$salary_cap_share, lebron = points$lebron, war = points$war)
+  }))
+  result <- out_of_season_robustness(root)
+  stopifnot(result$available, length(result$results) == 6L)
+  for (value in result$results) stopifnot(!value$held_out_season %in% value$training_seasons, value$mse < 1e-12)
+})
+
+test("a single-salary cohort preserves raw points without inventing a reference domain", {
+  window <- synthetic_analysis_window()
+  window$points$salary_cap_share <- .10
+  window$points$salary_reported_usd <- window$points$reference_salary_usd <- 15464700
+  result <- analyze_player_window(window, pilot_only = TRUE, cache_dir = tempfile("basketball-single-salary-"))
+  stopifnot(!result$available, result$reason == "constant_model_no_resolved_salary_effect",
+            nrow(result$window$points) == 80L, is.null(result$models))
+})
+
+test("detected nonfinite analytic covariance withholds intervals and preserves bootstrap evidence and estimates", {
+  analysis <- analyze_player_window(synthetic_analysis_window(), cache_dir = tempfile("basketball-covariance-gate-"), influence = FALSE)
+  curve <- analysis$models$war
+  stopifnot(any(is.finite(curve$low)), curve$bootstrap$valid_refits == 499L)
+  curve$analytic_crosscheck <- list(available = FALSE, reason = "nonfinite_analytic_covariance")
+  gated <- apply_curve_uncertainty_gates(curve)
+  stopifnot(all(is.na(gated$low)), all(is.na(gated$high)), all(is.na(gated$contrast_low)),
+            identical(gated$expected, curve$expected), identical(gated$contrast, curve$contrast),
+            gated$bootstrap$valid_refits == 499L,
+            gated$bootstrap$interval_status == "nonfinite_analytic_covariance_interval_withheld")
+})
+
+test("the primary player bootstrap refuses raw repeated-season transport rows", {
+  points <- synthetic_relationship_points("linear", 30L)
+  rows <- dplyr::bind_rows(lapply(c("2024-25", "2025-26"), function(season) {
+    x <- points; x$season <- season; x
+  }))
+  fit <- fit_salary_relationship(rows, "war", observation_unit = "player-season-transport")
+  curve <- relationship_curve(fit, 154647000)
+  expect_error(run_relationship_bootstrap(curve, 2026, 1, draws = 25, pilot = TRUE,
+    cache_dir = tempfile("basketball-wrong-bootstrap-unit-")), "not repeated season rows")
 })
 
 cat(sprintf("\n%d offline boundary tests passed.\n", test_count))

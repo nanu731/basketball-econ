@@ -37,6 +37,9 @@ read_bootstrap_cache <- function(path, expected_identity, expected_draws) {
 run_relationship_bootstrap <- function(curve, end_year, window_length, draws = 499L,
                                         cache_dir = "cache/bootstrap", pilot = FALSE) {
   fit <- curve$fit
+  if (!identical(fit$observation_unit, "player-window") || anyDuplicated(fit$nba_ids)) {
+    stop("Whole-player bootstrap requires one complete aggregate per player, not repeated season rows", call. = FALSE)
+  }
   if (draws < 499L && !pilot) stop("Primary bootstrap requires at least 499 planned draws", call. = FALSE)
   if (length(draws) != 1L || is.na(draws) || draws < 2L || draws != floor(draws)) stop("Invalid bootstrap count", call. = FALSE)
   seed <- bootstrap_seed(end_year, window_length, fit$outcome, fit$config)

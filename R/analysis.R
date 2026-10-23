@@ -50,6 +50,20 @@ analytic_curve_crosscheck <- function(curve, bootstrap) {
        curve = compare(curve_se, primary$curve_se), contrast = compare(contrast_se, primary$contrast_se))
 }
 
+apply_curve_uncertainty_gates <- function(curve) {
+  check <- curve$analytic_crosscheck
+  if (!isTRUE(check$available) && identical(check$reason, "nonfinite_analytic_covariance")) {
+    curve$low[] <- curve$high[] <- NA_real_
+    curve$contrast_low[] <- curve$contrast_high[] <- NA_real_
+    curve$bootstrap$interval_status <- "nonfinite_analytic_covariance_interval_withheld"
+    curve$bootstrap$withholding_reason <- paste(
+      "The frozen protocol withholds intervals after a detected nonfinite covariance.",
+      "This gate does not establish that empirical bootstrap draws are mathematically invalid.")
+    curve$interval_method <- paste("Intervals withheld by the declared nonfinite-covariance gate.", curve$interval_method)
+  }
+  curve
+}
+
 analyze_player_window <- function(window, sentinel = FALSE, pilot_only = FALSE,
                                   cache_dir = "cache/bootstrap", influence = TRUE) {
   models <- list(); timing <- list()
@@ -83,6 +97,7 @@ analyze_player_window <- function(window, sentinel = FALSE, pilot_only = FALSE,
       curve$monte_carlo <- mc
     }
     curve$analytic_crosscheck <- tryCatch(analytic_curve_crosscheck(curve, boot), error = function(e) list(available = FALSE, reason = conditionMessage(e)))
+    curve <- apply_curve_uncertainty_gates(curve)
     if (influence) curve$influence <- leave_player_out_influence(fit)
     if (fit$selected_family == "smooth") {
       curve$basis_diagnostic <- with_reproducible_seed(20261026L + window$end_season_year + window$window_length,

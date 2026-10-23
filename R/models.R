@@ -48,7 +48,7 @@ fit_curve_family <- function(data, family, config = methods_config()) {
   model
 }
 
-score_partition <- function(data, ids, seed, config) {
+score_partition <- function(data, ids, seed, config, observation_ids = ids) {
   map <- player_fold_map(ids, seed, config$folds)
   fold <- map$fold[match(ids, map$nba_id)]
   scores <- list(); predictions <- list(); losses <- list()
@@ -72,8 +72,9 @@ score_partition <- function(data, ids, seed, config) {
     fold_mse <- vapply(seq_len(config$folds), function(part) mean(error[fold == part]), double(1))
     scores[[family]] <- tibble::tibble(family = family, available = available,
       mse = if (available) mean(error) else NA_real_, fold_se = if (available) stats::sd(fold_mse) / sqrt(config$folds) else NA_real_,
-      scored_players = if (available) nrow(data) else 0L, failure = if (is.null(failure)) NA_character_ else failure)
-    predictions[[family]] <- tibble::tibble(nba_id = ids, fold = fold, family = family,
+      scored_players = if (available) length(unique(ids)) else 0L,
+      scored_observations = if (available) nrow(data) else 0L, failure = if (is.null(failure)) NA_character_ else failure)
+    predictions[[family]] <- tibble::tibble(nba_id = ids, observation_id = observation_ids, fold = fold, family = family,
       observed = data$y, predicted = if (available) predicted else NA_real_)
     losses[[family]] <- tibble::tibble(family = family, fold = seq_len(config$folds), mse = if (available) fold_mse else NA_real_)
   }
@@ -88,28 +89,39 @@ score_partition <- function(data, ids, seed, config) {
        one_se_threshold = threshold, selection_note = "Fold-SE is a simplicity heuristic, not a significance test or uncertainty interval")
 }
 
-fit_salary_relationship <- function(points, outcome, config = methods_config()) {
+fit_salary_relationship <- function(points, outcome, config = methods_config(),
+                                     observation_unit = c("player-window", "player-season-transport")) {
+  observation_unit <- match.arg(observation_unit)
   if (!outcome %in% c("lebron", "war")) stop("Only source LEBRON and WAR outcomes are permitted", call. = FALSE)
   require_columns(points, c("nba_id", "salary_cap_share", outcome), "Relationship points")
   ids <- as.character(points$nba_id)
-  if (anyNA(ids) || anyDuplicated(ids)) stop("Main relationship requires one equal-weight point per player", call. = FALSE)
+  if (anyNA(ids) || (observation_unit == "player-window" && anyDuplicated(ids))) stop("Main relationship requires one equal-weight point per player", call. = FALSE)
+  observation_ids <- ids
+  if (observation_unit == "player-season-transport") {
+    require_columns(points, "season", "Transport observations")
+    observation_ids <- paste(ids, points$season, sep = ":")
+    if (anyDuplicated(observation_ids)) stop("Duplicate player-season in transport observations", call. = FALSE)
+  }
   require_numeric(points$salary_cap_share, "salary_cap_share", minimum = 0)
   require_numeric(points[[outcome]], outcome)
-  if (nrow(points) < config$minimum_players) return(list(available = FALSE, reason = "fewer_than_25_eligible_players", outcome = outcome))
-  order <- order(ids); points <- points[order, ]; ids <- ids[order]
+  if (length(unique(ids)) < config$minimum_players) return(list(available = FALSE, reason = "fewer_than_25_eligible_players", outcome = outcome))
+  if (length(unique(points$salary_cap_share)) < 2L) return(list(available = FALSE,
+    reason = "constant_model_no_resolved_salary_effect", outcome = outcome,
+    raw_records = points, distinct_salary_values = 1L))
+  order <- order(observation_ids); points <- points[order, ]; ids <- ids[order]; observation_ids <- observation_ids[order]
   data <- data.frame(x = points$salary_cap_share, y = points[[outcome]])
-  first <- score_partition(data, ids, config$partition_seeds[1], config)
+  first <- score_partition(data, ids, config$partition_seeds[1], config, observation_ids)
   partitions <- list(first)
   family <- first$selected_family
   if (family != "intercept") {
-    second <- score_partition(data, ids, config$partition_seeds[2], config)
+    second <- score_partition(data, ids, config$partition_seeds[2], config, observation_ids)
     partitions[[2]] <- second
     family <- config$candidate_order[min(match(c(first$selected_family, second$selected_family), config$candidate_order))]
   }
   model <- fit_curve_family(data, family, config)
   expected <- as.numeric(stats::predict(model, newdata = data))
   leverage <- if (inherits(model, "gam")) model$hat else stats::hatvalues(model)
-  list(available = TRUE, outcome = outcome, selected_family = family, model = model,
+  list(available = TRUE, outcome = outcome, observation_unit = observation_unit, selected_family = family, model = model,
        data = data, nba_ids = ids, partitions = partitions, config = config,
        expected = expected, residual = data$y - expected,
        stability_disagreement = length(partitions) > 1L && first$selected_family != partitions[[2]]$selected_family,
@@ -162,6 +174,7 @@ local_contrast_support <- function(x, at, reference_cap, config = methods_config
 }
 
 relationship_curve <- function(fit, reference_cap, grid_size = 101L) {
+  if (!isTRUE(fit$available)) stop("Cannot construct a salary reference: ", fit$reason, call. = FALSE)
   knots <- sort(unique(c(seq(min(fit$data$x), max(fit$data$x), length.out = grid_size), fit$data$x)))
   values <- predict_relationship(fit, knots)
   support <- local_contrast_support(fit$data$x, knots, reference_cap, fit$config)
