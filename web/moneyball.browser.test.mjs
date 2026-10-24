@@ -95,13 +95,22 @@ async function mountedScenario() {
     // Real exports include every player salary as a knot; between-knot interpolation has a separate unit regression.
     await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Mount did not finish');
     await document.fonts.ready;
-    const baseline = reference(); check(dots().length === one.players.length, 'Initial cohort count differs');
+    check(dots().length === one.players.length, 'Initial cohort count differs');
+    check(q('metric').value === 'lebron' && q('metric').selectedOptions[0].textContent.includes('LEBRON') && q('metric-note').textContent.includes('league-average'), 'LEBRON is not the labeled initial contribution view');
+    check(q('selected-magnitude').checkVisibility() && !q('selected-magnitude').closest('details') && q('selected-scale').checkVisibility() && q('selected-cohort').checkVisibility(), 'Standardized gap context is buried or missing');
+    check(q('selected-magnitude').closest('.mb-gap-context').textContent.includes('not statistical significance'), 'Visible gap context implies significance');
+    check(document.getElementById('mb-metric-definitions')?.textContent.includes('formulas') && root.textContent.includes('complete numerical LEBRON-to-WAR conversion') && root.textContent.includes('gᵢ = rᵢ / median'), 'Metric definitions, provider formula boundary or exact standardized-gap calculation missing');
     const chartTop = q('chart').getBoundingClientRect().top + scrollY;
     check(document.documentElement.scrollWidth <= innerWidth + 1, 'Initial example widens the page');
     const initialExample = one.players.find(p => p.id === q('chart').querySelector('.mb-selected')?.dataset.player);
     check(q('search').value === '' && q('search').placeholder === 'Search by name' && root.querySelector('label[for="mb-player-search"]').textContent.startsWith('Search player'), 'Initial search is not an empty labeled name search');
     check(initialExample?.label && q('search-result').textContent.startsWith(`Example ${initialExample.name}`) && q('selection-name').textContent.startsWith('Example:'), 'Initial comparison is not a clearly labeled validated example');
     check(scrollY === 0 && document.activeElement !== q('selection-panel'), 'Initial example auto-scrolled or focused the result');
+    const powell = one.players.find(p => p.name === 'Drake Powell'); check(powell, 'Requested real-player gap example missing');
+    choose(powell);
+    check(q('selected-gap').textContent === '−3.85' && q('selected-magnitude').textContent.startsWith('−3.94 ×') && q('selected-scale').textContent.includes('about 0.98') && q('selected-magnitude').checkVisibility(), 'Drake Powell raw gap is not accompanied by correct league-scale context');
+    q('controls').focus({ preventScroll: true }); window.scrollTo(0, 0);
+    change('metric', 'war'); const baseline = reference();
     const exampleBounds = q('example-buttons').getBoundingClientRect();
     check([...q('example-buttons').querySelectorAll('button')].every(button => { const r = button.getBoundingClientRect(); return r.height >= 44 && r.left >= exampleBounds.left - 1 && r.right <= exampleBounds.right + 1; }), 'Examples require horizontal scrolling or have undersized targets');
     q('search').value = ''; q('search').dispatchEvent(new Event('input', { bubbles: true }));
@@ -299,14 +308,14 @@ async function mountedScenario() {
     q('reset').focus({ preventScroll: true }); q('reset').scrollIntoView({ block: 'center', behavior: 'instant' }); const resetScroll = scrollY;
     q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
     check(document.activeElement === q('reset') && Math.abs(scrollY - resetScroll) < 1, 'Reset moved focus or jumped to the starter result');
-    check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls and empty search');
-    check(q('selection-name').textContent === `Example: ${initialExample.name}`, 'Reset did not restore the labeled default example'); gapSize(initialExample, 'war', one);
+    check(q('metric').value === 'lebron' && q('metric').selectedOptions[0].textContent.includes('LEBRON') && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore LEBRON default controls and empty search');
+    check(q('selection-name').textContent === `Example: ${initialExample.name}`, 'Reset did not restore the labeled default example'); gapSize(initialExample, 'lebron', one);
     check(q('snapshot').querySelector('thead').textContent.includes('gap size') && q('snapshot').querySelector('thead').textContent.includes('LEBRON') && q('rows').closest('table').querySelectorAll('thead th').length === 6, 'Full saved records or the simplified active-metric live table is wrong');
     const priorEntry = index.views.find(v => v.endSeason === initial.endSeason - 1 && v.window === 1), prior = (await json(priorEntry.url)).views[0];
     change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, `Prior year did not load (expected ${prior.players.length} players)`);
-    choose(prior.players[0]); gapSize(prior.players[0], 'war', prior); association(prior, 'war');
+    choose(prior.players[0]); gapSize(prior.players[0], 'lebron', prior); association(prior, 'lebron');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
-    check(q('selection-name').textContent === `Example: ${initialExample.name}` && q('search').value === '', 'Year reset did not restore the labeled default example'); gapSize(initialExample, 'war', one); association(one, 'war');
+    check(q('selection-name').textContent === `Example: ${initialExample.name}` && q('search').value === '', 'Year reset did not restore the labeled default example'); gapSize(initialExample, 'lebron', one); association(one, 'lebron');
     change('window', '5'); await wait(() => !q('search').disabled && q('window').value === '5', 'Five-season setup did not recover');
     check(q('search').value === '', 'Retaining a starter comparison filled the search query');
     const earliest = index.views.filter(v => v.window === 1).sort((a, b) => a.endSeason - b.endSeason)[0];
@@ -324,8 +333,8 @@ async function mountedScenario() {
     const coverageValues = [...q('coverage-facts').querySelectorAll('dd')].map(el => el.textContent);
     check(coverageValues.slice(0, 5).join('|') === [one.coverage.eligible, one.coverage.matched, one.coverage.sourcePlayerSeasons, one.coverage.eligiblePlayerSeasons, one.coverage.unknownSalaryPlayerSeasons].join('|'), 'Labeled coverage populations differ from the saved fields');
     check([...q('coverage-exclusions').querySelectorAll('dd')].map(el => el.textContent).join('|') === one.coverage.excluded.map(e => e.count).join('|'), 'Reported exclusion counts changed');
-    check(q('view-model-name').textContent === one.models.war.name && q('view-method').closest('details') !== q('view-model-name').closest('details'), 'Human model context and exact records are not separated');
-    check(q('view-method').textContent === one.models.war.method && [...q('view-validation').children].map(li => li.textContent).join(' | ') === one.models.war.validation, 'Labeled technical method/validation differs from the export');
+    check(q('view-model-name').textContent === one.models.lebron.name && q('view-method').closest('details') !== q('view-model-name').closest('details'), 'Human model context and exact records are not separated');
+    check(q('view-method').textContent === one.models.lebron.method && [...q('view-validation').children].map(li => li.textContent).join(' | ') === one.models.lebron.validation, 'Labeled technical method/validation differs from the export');
     for (const list of root.querySelectorAll('[data-mb-saved-validation]')) check([...list.children].map(li => li.textContent).join(' | ') === one.models[list.getAttribute('data-mb-saved-validation')].validation, 'Saved validation clauses differ from the export');
     check(getComputedStyle(q('snapshot').querySelector('.mb-table-scroll')).maxHeight === 'none', 'Saved no-JS record access was bounded');
     for (const [term, targetId] of [['mb-gap-size', 'mb-gap-size-calculation'], ['mb-value-percentile', 'mb-percentile-calculation']]) {

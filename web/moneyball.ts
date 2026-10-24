@@ -301,6 +301,7 @@ export const money = (v: number): string => {
 export const salaryCoverage = (v: View): string => { const c = v.coverage; return `Known active compensation included: ${money(c.includedKnownSalaryUsd)} of ${money(c.allKnownActiveSalaryUsd)} (${c.allKnownActiveSalaryUsd > 0 ? `${decimal(c.includedKnownSalaryUsd / c.allKnownActiveSalaryUsd * 100)}%` : 'coverage undefined: no known-dollar denominator'}). ${c.unknownSalaryPlayerSeasons} player-seasons have unknown salary; ${c.eligiblePlayerSeasons} matched active player-seasons retained from ${c.sourcePlayerSeasons} active source player-seasons. ${v.window > 1 ? 'Both dollar totals are annual ending-season cap-equivalent amounts across the full window. ' : ''}This is known matched-sample coverage, not whole payroll.`; };
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
 export const warOptionLabel = (window: View['window']): string => window === 1 ? 'Estimated wins (WAR)' : 'Avg est. wins (WAR)';
+export const DEFAULT_METRIC: Metric = 'lebron';
 
 function gapNumber(value: number): string {
   const magnitude = Math.abs(num(value));
@@ -629,13 +630,13 @@ export function mountMoneyball(root: HTMLElement): void {
       index = catalog; loader = createViewLoader(catalog, readJSON);
       const initial = catalog.views.find(v => v.id === catalog.defaultView)!;
       season.replaceChildren(...[...new Set(catalog.views.map(v => v.endSeason))].sort((a, b) => b - a).map(y => option(String(y), seasonLabel(y))));
-      season.value = String(initial.endSeason); windowSelect.value = String(initial.window); metric.value = 'war'; units.value = 'usd'; search.value = ''; selected = '';
+      season.value = String(initial.endSeason); windowSelect.value = String(initial.window); metric.value = DEFAULT_METRIC; units.value = 'usd'; search.value = ''; selected = '';
       await changeView();
       showDefaultExample();
     } catch { if (ticket === request) failure('The season index is unavailable or invalid. Retry or read the labeled default build snapshot below.'); }
   }
   function showDefaultExample() {
-    const example = active && active.id === index?.defaultView && metric.value === 'war' && units.value === 'usd' && !team.value && !search.value ? examplePlayers(active, '')[0] : undefined;
+    const example = active && active.id === index?.defaultView && metric.value === DEFAULT_METRIC && units.value === 'usd' && !team.value && !search.value ? examplePlayers(active, '')[0] : undefined;
     if (example) commitPlayer(example.id, false, true);
   }
   async function changeView() {
@@ -691,7 +692,7 @@ export function mountMoneyball(root: HTMLElement): void {
     get('no-matches').hidden = shown.length > 0;
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
     metric.options[0].textContent = warOptionLabel(active.window);
-    metric.options[1].textContent = 'Impact when playing';
+    metric.options[1].textContent = 'LEBRON · impact rate';
     txt('season-label', active.window > 1 ? 'Season ending' : 'Season');
     const context = `${viewLabel(active)} · Regular season${active.window === 1 ? '' : 's · averages over available matched seasons'}`;
     txt('period', ` · ${context}`);
@@ -906,7 +907,7 @@ export function mountMoneyball(root: HTMLElement): void {
   get('salary-example').addEventListener('click', choose);
   get('clear-search').addEventListener('click', () => { selected = ''; exampleSelection = ''; search.value = ''; closeSuggestions(); render(); search.focus({ preventScroll: true }); });
   get('find-player').addEventListener('click', () => { search.focus({ preventScroll: true }); search.scrollIntoView({ block: 'center', behavior: 'instant' }); });
-  get('reset').addEventListener('click', async () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = 'war'; units.value = 'usd'; get<HTMLInputElement>('salary-connector').checked = true; search.value = ''; team.value = ''; selected = ''; exampleSelection = ''; await changeView(); showDefaultExample(); });
+  get('reset').addEventListener('click', async () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = DEFAULT_METRIC; units.value = 'usd'; get<HTMLInputElement>('salary-connector').checked = true; search.value = ''; team.value = ''; selected = ''; exampleSelection = ''; await changeView(); showDefaultExample(); });
   let frame = 0;
   new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); }).observe(chart.parentElement!);
   void loadIndex();
