@@ -466,6 +466,10 @@ export function mountMoneyball(root: HTMLElement): void {
   function setControls(ready: boolean) {
     controls.disabled = !index; get<HTMLButtonElement>('reset').disabled = !index; get('guide').hidden = !ready; get('period').hidden = !ready;
     for (const el of [metric, units, search, team, get<HTMLButtonElement>('find-player')]) el.disabled = !ready;
+    for (const link of root.querySelectorAll<HTMLAnchorElement>('[data-mb-return]')) {
+      link.href = ready ? '#mb-player-comparison' : '#mb-snapshot-title';
+      link.textContent = ready ? 'Back to player comparison' : 'Back to saved records';
+    }
   }
   function renderSuggestions(scroll = false) {
     const state = suggestionModel.state;

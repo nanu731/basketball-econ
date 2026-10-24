@@ -16,6 +16,16 @@ async function mountedScenario() {
     for (let i = 0; i < 100; i++) { if (condition()) return; await new Promise(r => setTimeout(r, 50)); }
     throw new Error(message);
   };
+  const checkReturns = async ready => {
+    const expected = ready ? '#mb-player-comparison' : '#mb-snapshot-title', label = ready ? 'Back to player comparison' : 'Back to saved records';
+    const target = document.querySelector(expected), links = [...root.querySelectorAll('[data-mb-return]')];
+    check(links.length === 2 && target.checkVisibility(), 'Return destination is missing or hidden');
+    for (const link of links) {
+      check(link.getAttribute('href') === expected && link.textContent === label, 'Return link does not match readiness');
+      for (let parent = link.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
+      link.click(); await wait(() => document.activeElement === target, 'Return action did not focus its visible destination');
+    }
+  };
   const json = async url => { const response = await fetch(url); check(response.ok, `Missing ${url}`); return response.json(); };
   const change = (key, value) => { q(key).value = value; q(key).dispatchEvent(new Event('change', { bubbles: true })); };
   const dots = () => [...q('chart').querySelectorAll('circle[data-player]')];
@@ -191,6 +201,7 @@ async function mountedScenario() {
     check(q('retry').getBoundingClientRect().height >= 44 && q('reset').getBoundingClientRect().height >= 44, 'Recovery actions are not visible');
     check(q('guide').hidden && q('no-matches').hidden && q('view-comparison').hidden && !q('retry').hidden && q('snapshot').querySelector('h3').textContent.includes('2025–26'), 'Failure guidance or saved record label is wrong');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
+    await checkReturns(false);
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Retry did not recover');
     check(!q('search').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
     const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); association((await json(fiveView.url)).views[0], 'lebron');
@@ -219,6 +230,7 @@ async function mountedScenario() {
       check(link?.dataset.detailTarget === targetId && target?.matches('h4[data-reference-target][tabindex="-1"]'), 'Full calculation link does not target its own focusable formula heading');
       const back = target.nextElementSibling; check(back?.matches('a[href="#mb-player-comparison"]') && back.textContent === 'Back to player comparison', 'Calculation lacks a nearby native return link');
     }
+    await checkReturns(true);
     document.body.dataset.moneyballTest = 'passed';
   } catch (error) {
     document.body.dataset.moneyballTest = 'failed'; document.body.dataset.moneyballError = encodeURIComponent(error.stack ?? String(error));
@@ -230,6 +242,10 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   const page = '/projects/moneyball-basketball-edition/';
   const html = await readFile(join(build, page, 'index.html'), 'utf8');
   assert.match(html, /data-mb-million-summary[^>]*>In [^<]+\$1 million more[^<]+fitted league line/, 'Default association must be server-rendered for no-JS');
+  const savedReturns = html.match(/<a\b[^>]*data-mb-return[^>]*>Back to saved records<\/a>/g) ?? [];
+  assert.equal(savedReturns.length, 2, 'Both no-JS return links must name saved records');
+  assert.ok(savedReturns.every(link => link.includes('href="#mb-snapshot-title"')), 'No-JS return links must target the visible saved records');
+  assert.ok(html.match(/<h3\b[^>]*id="mb-snapshot-title"[^>]*>/)?.[0].includes('tabindex="-1"'), 'Saved heading must accept native return focus');
   assert.ok(html.includes("script-src 'self'") && html.includes('</body>'), 'Use the actual strict-CSP private build');
   const module = `(${mountedScenario.toString()})();`, profile = await mkdtemp(join(tmpdir(), 'moneyball-browser-'));
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.webp': 'image/webp' };
