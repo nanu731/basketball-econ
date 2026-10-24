@@ -321,7 +321,7 @@ export function playerComparisonCopy(p: Player, metric: Metric, view: View, unit
     contribution: `${values.contribution} ${contributionUnit}`,
     reference: `${values.reference} ${contributionUnit}`,
     gap: `${values.gap} ${contributionUnit}`,
-    percentile: `${percentile(p.valuePercentile[metric])}th percentile of league gaps`,
+    percentile: percentile(p.valuePercentile[metric]),
     magnitude: gapMultiple(p.gapMultiple[metric]), scale: gapScaleCopy(metric, view),
     cohort: `Among ${view.players.length} eligible matched players`,
     observed: view.window > 1 ? `Based on ${p.observedSeasons.length} of ${view.window} seasons` : '',

@@ -193,7 +193,7 @@ async function mountedScenario() {
     choose(player); check(q('team').getBoundingClientRect().height >= 44, 'Visible team control is unusable'); change('team', 'NYK');
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
-    check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank}th percentile of league gaps`, 'Team filter changed cohort reference/rank');
+    check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === expectedRank, 'Team filter changed cohort reference/rank');
     check(q('team-scope').textContent.includes('full matched records across teams') && q('team-basis').textContent.includes('fixed during player search') && q('team-context').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Team population or search scope is missing near the chart controls');
     const teamTotal = one.teams.find(t => t.team === 'NYK'), teamValues = [...q('team-summary').querySelectorAll('dd')].map(el => el.textContent);
     check(teamValues[0] === `${teamTotal.attributablePlayerSeasons} of ${teamTotal.eligiblePlayerSeasons} player-seasons` && teamValues[1] === new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(teamTotal.salaryUsd), 'Structured team totals differ from saved assigned sample');
@@ -212,7 +212,7 @@ async function mountedScenario() {
     check(fields.every(f => q(`million-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '' && q('selection-context').hidden && q('selection-context').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
     const multiPlayer = multi.players.find(p => p.id === player.id); gapSize(multiPlayer, 'lebron', multi);
-    check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + 'th percentile of league gaps', 'Window/metric rank stayed stale');
+    check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron), 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
     association(multi, 'lebron'); check(q('million-context').textContent.includes('cap-equivalent') && q('million-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
     check(q('season-label').textContent === 'Season ending' && q('selected-salary-basis').textContent.includes('Average annual pay, adjusted to') && q('selected-salary-basis').textContent.includes('salary cap'), 'Multi-year salary or season-ending basis is ambiguous');
