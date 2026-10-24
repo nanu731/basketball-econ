@@ -780,7 +780,7 @@ export function mountMoneyball(root: HTMLElement): void {
   records.addEventListener('toggle', () => { if (records.open) renderTable(); });
   const choose = (e: Event) => {
     const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-player]') : null;
-    if (target && commitPlayer(target.dataset.player ?? '') && e.currentTarget === table) {
+    if (target && commitPlayer(target.dataset.player ?? '') && (e.currentTarget === table || e.currentTarget === get('example-buttons'))) {
       const panel = get('selection-panel'); panel.focus({ preventScroll: true }); panel.scrollIntoView({ block: 'start', behavior: 'instant' });
     }
   };

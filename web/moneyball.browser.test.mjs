@@ -63,6 +63,7 @@ async function mountedScenario() {
     check(document.documentElement.scrollWidth <= innerWidth + 1, 'Initial example widens the page');
     const initialExample = one.players.find(p => p.id === q('chart').querySelector('.mb-selected')?.dataset.player);
     check(initialExample?.label && q('search-result').textContent.startsWith(`Example ${initialExample.name}`) && q('selection-name').textContent.startsWith('Example:'), 'Initial comparison is not a clearly labeled validated example');
+    check(scrollY === 0 && document.activeElement !== q('selection-panel'), 'Initial example auto-scrolled or focused the result');
     const exampleBounds = q('example-buttons').getBoundingClientRect();
     check([...q('example-buttons').querySelectorAll('button')].every(button => { const r = button.getBoundingClientRect(); return r.height >= 44 && r.left >= exampleBounds.left - 1 && r.right <= exampleBounds.right + 1; }), 'Examples require horizontal scrolling or have undersized targets');
     q('search').value = ''; q('search').dispatchEvent(new Event('input', { bubbles: true }));
@@ -106,9 +107,10 @@ async function mountedScenario() {
     const examples = [...q('example-buttons').querySelectorAll('button')];
     check(examples.length > 0 && examples.length <= 3 && !q('chart').querySelector('.mb-selected'), 'Examples missing or auto-selected');
     check(examples.every(b => one.players.some(p => p.id === b.dataset.player && p.label)), 'Example was not an eligible labeled player');
-    check(q('examples').closest('form') && q('examples').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Examples are not beside the opening search');
+    check(!q('examples').closest('fieldset') && q('examples').previousElementSibling === q('selection-panel') && q('examples').getBoundingClientRect().top >= q('selection-panel').getBoundingClientRect().bottom - 1, 'Examples are not immediately after the selected result');
     check(examples.every(b => b.getBoundingClientRect().height >= 44 && getComputedStyle(b).fontFamily === getComputedStyle(q('examples')).fontFamily && getComputedStyle(b).borderTopStyle === 'solid'), 'Example buttons lost house styling or 44px targets');
     examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
+    check(document.activeElement === q('selection-panel') && q('selection-panel').getBoundingClientRect().top >= -1 && q('selection-panel').getBoundingClientRect().top < innerHeight, 'Example selection did not focus and reveal the changed result');
     const beforeShortcut = q('search').value; q('find-player').click();
     check(document.activeElement === q('search') && q('search').value === beforeShortcut && root.querySelectorAll('input[type=search]').length === 1, 'Find shortcut lost continuity or duplicated search');
     const association = (view, metric) => {
