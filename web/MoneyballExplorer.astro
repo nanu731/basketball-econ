@@ -188,14 +188,14 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
 <p>For each contribution measure and window, the percentile compares the player's gap from the salary reference with all eligible matched players in that view. Larger gaps rank higher. It counts every smaller gap and half of every exact tie, including the player, then divides by the full cohort size. Only the displayed percentile is rounded to one decimal.</p><p>Ranking uses the exact saved numbers for the gaps, not the rounded values on the page. A zero gap need not be the 50th percentile; the endpoints need not be 0 and 100. Filters preserve the full league cohort. Gaps can vary more at some salary levels than others. This rank does not measure how unusual a gap is, uncertainty, overall talent, causal value or return per dollar.</p>
           <h4>Saved default sources and release status</h4>
           {data ? <><p>Saved {viewLabel(data.views[0])} · {data.dataVersion}. {data.publication.note}</p><ul>{data.sources.map(source => <li><a href={source.url} rel="noreferrer">{source.label}</a> · retrieved {source.retrieved} · <code>{source.version}</code></li>)}</ul></> : <p>No validated default bundle is available.</p>}
-          <p>The <a href="https://github.com/nanu731/basketball-econ/blob/main/LICENSE">MIT license</a> covers original code, not upstream data or metrics. Free access does not establish permission to redistribute; public reuse and release remain unapproved. Regular seasons only; playoffs are deferred.</p>
+          <p>The MIT license covers original code, not upstream data or metrics. Release status is recorded with the saved sources above. Regular seasons only; playoffs are deferred.</p>
         </section>
       </details>
     </details>
-    <details><summary>Sources and code</summary>
+    <details><summary>Sources</summary>
       <p class="mb-small" data-mb-source-context>Saved {data ? viewLabel(data.views[0]) : 'default'} sources.</p>
       <ul data-mb-view-sources>{data?.sources.map(source => <li><a href={source.url} rel="noreferrer">{source.label}</a></li>)}</ul>
-      <p><a href="https://github.com/nanu731/basketball-econ">Analysis and reproduction code</a>. Retrieval dates, versions and reuse notes are in the technical records.</p>
+      <p>Retrieval dates, versions and reuse notes are in the technical records.</p>
     </details>
     <a class="mb-back-comparison" data-mb-return="controls" href="#mb-snapshot-title">Back to saved records</a>
   </section>
