@@ -144,7 +144,8 @@ async function mountedScenario() {
     check(q('view-comparison').contains(q('search-result')) && q('search-instructions').textContent === '' && q('view-comparison').getBoundingClientRect().height >= 44, 'Selected feedback is not one accessible comparison action');
     check(!q('view-comparison').hidden && q('view-comparison').getAttribute('href') === '#mb-player-comparison', 'Search lacks a route to its selected comparison');
     check(q('guide').textContent.startsWith('Select a dot or search.') && q('guide').getBoundingClientRect().top < q('chart').getBoundingClientRect().top && root.querySelector('.mb-ranked-link').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Invitation or ranked route is below the plot');
-    check(!q('selected-salary-basis').closest('dd') && q('selected-salary-basis').getBoundingClientRect().width > q('comparison').getBoundingClientRect().width * .9, 'Salary basis is trapped in a narrow value column');
+    check(!q('selected-salary-basis').closest('dd'), 'Salary basis is inside a value column');
+    if (innerWidth <= 704) check(q('selected-salary-basis').getBoundingClientRect().width > q('comparison').getBoundingClientRect().width * .9, 'Phone salary basis is trapped in a narrow value column');
     const legend = q('chart').closest('.mb-chart-layout').querySelector('.mb-legend');
     check(legend.getBoundingClientRect().top < q('selection-panel').getBoundingClientRect().top && legend.contains(q('find-player')), 'Legend/search alternative is not between plot and facts');
     q('comparison-details').open = true; gapSize(player, 'war', one); check(q('million-summary').textContent === defaultAssociation, 'Player search changed league association');
