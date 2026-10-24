@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows, lebronSalaryReference } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows, lebronSalaryReference, viewSourceLinks } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -27,6 +27,31 @@ function fixture() {
 }
 test('accepts negative outcomes and unknown team attribution as null', () => { assert.equal(validateBundle(fixture()).views[0].players[0].war, -2); });
 test('interpolates the visible curve and never extrapolates', () => { const c = fixture().views[0].models.war.curve; assert.equal(interpolate(c, .05), -.5); assert.ok(Number.isNaN(interpolate(c, .3))); });
+test('source navigation uses each selected season’s cap announcement without changing source records', () => {
+  const bundle = fixture(), view = bundle.views[0];
+  bundle.sources.push({ label: 'Synthetic salary source', url: 'https://example.com/salary', version: 'salary-fixture', retrieved: '2026-10-23' },
+    { label: 'NBA announced season salary caps', url: 'https://pr.nba.com/nba-salary-cap-2025-26-season/', version: 'cap-fixture', retrieved: '2026-10-23' });
+  view.seasons = [2010];
+  const before = structuredClone(bundle), links = viewSourceLinks(bundle, view);
+  assert.deepEqual(links.slice(0, 2), bundle.sources.slice(0, 2).map(({ label, url }) => ({ label, url })));
+  assert.deepEqual(links[2], { label: '2009–10 salary cap (reported in 2010–11 announcement)', url: 'https://pr.nba.com/nba-salary-cap-for-2010-11-season-set-at-58-044-million/' });
+  assert.deepEqual(bundle, before);
+  view.seasons = [2024, 2025, 2026];
+  assert.deepEqual(viewSourceLinks(bundle, view).slice(2), [
+    { label: '2023–24 salary cap', url: 'https://pr.nba.com/nba-salary-cap-for-2023-24-season-set-at-136-021-million/' },
+    { label: '2024–25 salary cap', url: 'https://www.nba.com/news/nba-salary-cap-set-2024-25-season' },
+    { label: '2025–26 salary cap', url: 'https://pr.nba.com/nba-salary-cap-2025-26-season/' },
+  ]);
+  assert.deepEqual(bundle.sources, before.sources);
+});
+test('unknown-season cap navigation labels its representative announcement truthfully', () => {
+  const bundle = fixture(), view = bundle.views[0];
+  bundle.sources = [{ label: 'NBA announced season salary caps', url: 'https://pr.nba.com/nba-salary-cap-2025-26-season/', version: 'cap-fixture', retrieved: '2026-10-23' }];
+  view.seasons = [2027];
+  const before = structuredClone(bundle);
+  assert.deepEqual(viewSourceLinks(bundle, view), [{ label: '2025–26 salary cap (representative announcement; no linked announcement for 2026–27)', url: 'https://pr.nba.com/nba-salary-cap-2025-26-season/' }]);
+  assert.deepEqual(bundle, before);
+});
 function inverseFixture() {
   const view = fixture().views[0], source = view.players[0];
   view.players = Array.from({ length: 41 }, (_, i) => {
@@ -446,13 +471,18 @@ test('search follows the incumbent accent/punctuation normalization and compact 
   assert.deepEqual(playerSuggestions(view, '', 'ajosy').map(p => p.id), [view.players[1].id]);
   assert.equal(filterPlayers(view, '', 'JOKIC')[0].id, view.players[2].id);
 });
-test('suggestions require two normalized non-space characters and sort prefixes before substrings', () => {
+test('suggestions require two normalized characters and prioritize complete name words, then prefixes', () => {
   const view = syntheticSearchView(), before = structuredClone(view);
   for (const query of ['', ' ', '-', 'j', ' j- ', 'é', 'e\u0301-']) assert.deepEqual(playerSuggestions(view, '', query), []);
   const suggestions = playerSuggestions(view, '', 'jo');
-  assert.deepEqual(suggestions.map(p => p.id), [view.players[0].id, view.players[3].id, view.players[2].id, view.players[1].id]);
+  assert.deepEqual(suggestions.map(p => p.id), [view.players[1].id, view.players[0].id, view.players[3].id, view.players[2].id]);
   assert.deepEqual(playerSuggestions(view, '', 'jo'), suggestions);
   assert.deepEqual(view, before);
+});
+test('surname matches outrank a compact match spanning first and last names', () => {
+  const view = syntheticSearchView();
+  ['John Collins SYNTHETIC', 'Collin Sexton SYNTHETIC', 'Zach Collins SYNTHETIC', 'Collins SYNTHETIC'].forEach((name, i) => { view.players[i].name = name; });
+  assert.deepEqual(playerSuggestions(view, '', 'collins').map(p => p.id), [view.players[3].id, view.players[0].id, view.players[2].id, view.players[1].id]);
 });
 test('keyboard suggestion state wraps, requires an active option for Enter and clears on dismissal', () => {
   const menu = createPlayerSuggestions(), view = syntheticSearchView();

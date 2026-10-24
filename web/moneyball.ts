@@ -252,6 +252,32 @@ export function createViewLoader(index: ViewIndex, read: (url: string) => Promis
   };
 }
 export const seasonLabel = (end: number): string => `${end - 1}–${String(end).slice(-2)}`;
+// Primary announcement URLs from R/caps.R; source versions stay in the immutable bundle.
+const capSourceUrls: Record<number, string> = {
+  2010: 'https://pr.nba.com/nba-salary-cap-for-2010-11-season-set-at-58-044-million/',
+  2011: 'https://pr.nba.com/nba-salary-cap-for-2010-11-season-set-at-58-044-million/',
+  2012: 'https://pr.nba.com/nba-cba-ratify/',
+  2013: 'https://pr.nba.com/nba-salary-cap-2012-13-season/',
+  2014: 'https://pr.nba.com/nba-salary-cap-2013-14-season/',
+  2015: 'https://pr.nba.com/nba-salary-cap-2014-15-season/',
+  2016: 'https://pr.nba.com/nba-salary-cap-2015-16-season/',
+  2017: 'https://pr.nba.com/nba-salary-cap-2016-17-season/',
+  2018: 'https://pr.nba.com/nba-salary-cap-2017-18-season/',
+  2019: 'https://pr.nba.com/nba-salary-cap-2018-19-season/',
+  2020: 'https://pr.nba.com/nba-salary-cap-for-2019-20-season-set-at-109-140-million/',
+  2021: 'https://pr.nba.com/nba-nbpa-2020-21-season/',
+  2022: 'https://pr.nba.com/nba-salary-cap-for-2021-22-season-set-at-112-414-million/',
+  2023: 'https://pr.nba.com/nba-salary-cap-2022-23-season/',
+  2024: 'https://pr.nba.com/nba-salary-cap-for-2023-24-season-set-at-136-021-million/',
+  2025: 'https://www.nba.com/news/nba-salary-cap-set-2024-25-season',
+  2026: 'https://pr.nba.com/nba-salary-cap-2025-26-season/',
+};
+export function viewSourceLinks(bundle: Bundle, view: View): { label: string; url: string }[] {
+  return bundle.sources.flatMap(source => source.label === 'NBA announced season salary caps' ? view.seasons.map(end => ({
+    label: capSourceUrls[end] ? `${seasonLabel(end)} salary cap${end === 2010 ? ' (reported in 2010–11 announcement)' : ''}` : `2025–26 salary cap (representative announcement; no linked announcement for ${seasonLabel(end)})`,
+    url: capSourceUrls[end] ?? capSourceUrls[2026],
+  })) : [{ label: source.label, url: source.url }]);
+}
 export const viewLabel = (v: View): string => v.window === 1 ? seasonLabel(v.endSeason) : `${seasonLabel(v.seasons[0])} to ${seasonLabel(v.endSeason)} · ${v.window} seasons`;
 // Reuse formatters: rebuilding locale/currency rules for every dot slows filtering.
 const decimalFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
@@ -307,9 +333,12 @@ export function sortGapRows(players: Player[], metric: Metric): Player[] {
 export function playerSuggestions(view: View, team: string, query: string): Player[] {
   if (!suggestionsReady(query)) return [];
   const search = normalizePlayerSearch(query), compact = compactSearch(query);
-  const starts = (p: Player) => normalizePlayerSearch(p.name).startsWith(search) || compactSearch(p.name).startsWith(compact);
+  const rank = (p: Player) => {
+    const name = normalizePlayerSearch(p.name), words = name.split(' ');
+    return words.includes(search) ? 0 : name.startsWith(search) ? 1 : words.some(word => word.startsWith(search)) ? 2 : compactSearch(p.name).startsWith(compact) ? 3 : 4;
+  };
   const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
-  return filterPlayers(view, team, query).sort((a, b) => Number(starts(b)) - Number(starts(a)) ||
+  return filterPlayers(view, team, query).sort((a, b) => rank(a) - rank(b) ||
     compare(normalizePlayerSearch(a.name), normalizePlayerSearch(b.name)) || compare(a.id, b.id));
 }
 /** Shared menu state for keyboard handling and context/failure dismissal. */
@@ -570,7 +599,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('empty-copy', message.startsWith('Loading') ? 'The selected records are being checked.' : 'Retry or change the season. Saved records are available below.');
     get('retry').hidden = message.startsWith('Loading');
     txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; txt('selection-context', ''); get('selection-context').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
-    get('salary-prototype').hidden = true;
+    get('salary-prototype').hidden = true; get('salary-key').hidden = true;
     for (const key of ['salary-reference', 'salary-difference', 'salary-basis', 'salary-exposure', 'salary-sensitivity', 'salary-unavailable', 'selected-unit', 'selected-direction', 'selected-salary-basis', 'selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-magnitude', 'selected-scale', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     for (const key of ['gap', 'contribution', 'reference', 'salary']) get(`selected-${key}`).closest('dd')!.removeAttribute('aria-label');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-context').hidden = true; txt('team-scope', ''); txt('team-basis', ''); get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.');
@@ -624,7 +653,7 @@ export function mountMoneyball(root: HTMLElement): void {
       bundle = data; active = data.views[0];
       setControls(true); get('empty').hidden = true; get('snapshot').hidden = true; get('live-table').hidden = false;
       status.textContent = `${data.publication.status === 'private-preview' ? 'Private preview' : 'Reviewed export'}${adjustedWindow ? `. The ${requestedWindow}-season span is unavailable here; showing ${active.window} season${active.window === 1 ? '' : 's'}.` : ''}`;
-      get('view-sources').replaceChildren(...data.sources.map(source => {
+      get('view-sources').replaceChildren(...viewSourceLinks(data, active).map(source => {
         const li = document.createElement('li'), link = document.createElement('a');
         link.href = source.url; link.rel = 'noreferrer'; link.textContent = source.label;
         li.append(link); return li;
@@ -720,12 +749,13 @@ export function mountMoneyball(root: HTMLElement): void {
           const sign = gap > 0 ? '+' : gap < 0 ? '−' : '';
           txt('salary-reference', share ? `≈${decimal(match.share! * 100)}% of cap` : `≈${referenceMoneyFormatter.format(match.salaryUsd!)}`);
           txt('salary-difference', `${sign}${share ? `${decimal(Math.abs(gap))} percentage points` : referenceMoneyFormatter.format(Math.abs(gap))}`);
-          txt('salary-basis', `${playerComparisonCopy(p, m, active, units.value as 'usd' | 'share').salaryBasis}. ${match.percentDifference === null ? 'Percentage change is undefined at zero reported pay.' : `${Math.round(Math.abs(match.percentDifference))}% ${match.percentDifference < 0 ? 'below' : match.percentDifference > 0 ? 'above' : 'different from'} reported pay.`}`);
+          const percent = match.percentDifference, percentCopy = percent === null ? 'Percentage change is undefined at zero reported pay.' : percent === 0 ? 'Same as reported pay.' : `${Math.abs(percent) < 1 ? 'Less than 1' : `About ${Math.round(Math.abs(percent))}`}% ${percent < 0 ? 'below' : 'above'} reported pay.`;
+          txt('salary-basis', `${copy.salaryBasis}. ${percentCopy}`);
           const curve = active.models.lebron.curve, j = Math.max(1, curve.findIndex(k => k.x >= match.share!));
           const shift = .1 * ((curve[j].x - curve[j - 1].x) / (curve[j].y - curve[j - 1].y)) * active.referenceCapUsd;
           txt('salary-sensitivity', Number.isFinite(shift) ? `A hypothetical +0.1 LEBRON changes reference pay by about ${referenceMoneyFormatter.format(shift)} on this part of the line, using the same dollar basis as reported pay. This illustrates sensitivity, not uncertainty in the player's score.` : 'The salary response to a 0.1 LEBRON change cannot be represented safely.');
         }
-        txt('salary-exposure', `About ${Math.round(p.minutes).toLocaleString('en-US')} minutes across ${p.observedSeasons.length} observed season${p.observedSeasons.length === 1 ? '' : 's'}.`);
+        txt('salary-exposure', `About ${Math.round(p.minutes).toLocaleString('en-US')} minutes ${active.window === 1 ? 'played this season' : `across ${p.observedSeasons.length} observed season${p.observedSeasons.length === 1 ? '' : 's'}`}.`);
       }
     } else { txt('selection', 'Select a dot, choose an example or search for a player.'); txt('selected-magnitude', ''); txt('selected-scale', ''); }
     draw(); millionReadout();
@@ -752,6 +782,7 @@ export function mountMoneyball(root: HTMLElement): void {
   function clearHover() { chart.querySelector('.mb-hover')?.remove(); }
   function draw() {
     clearHover();
+    get('salary-key').hidden = true;
     if (!active) return;
     const m = metric.value as Metric, curve = active.models[m].curve, all = active.players, shown = rows();
     const bounds = chart.getBoundingClientRect(), width = Math.max(260, Math.round(bounds.width)), height = Math.max(340, Math.round(bounds.height));
@@ -780,11 +811,12 @@ export function mountMoneyball(root: HTMLElement): void {
       if (m === 'lebron' && get<HTMLInputElement>('salary-connector').checked) {
         const match = lebronSalaryReference(active, chosen);
         if (match.status === 'available') {
-          const end = x(match.share!), right = end < width / 2;
+          get('salary-key').hidden = false;
+          const end = x(match.share!);
           const label = units.value === 'share' ? `${decimal(match.share! * 100)}% cap` : referenceMoneyFormatter.format(match.salaryUsd!);
           children.push(svg('line', { x1: x(chosen.salaryCapShare), x2: end, y1: y(chosen.lebron), y2: y(chosen.lebron), class: 'mb-salary-link' }),
             svg('rect', { x: end - 4, y: y(chosen.lebron) - 4, width: 8, height: 8, class: 'mb-salary-end' }),
-            svg('text', { x: end + (right ? 9 : -9), y: y(chosen.lebron) + 18, 'text-anchor': right ? 'start' : 'end', class: 'mb-salary-label' }, `Line: ${label}`));
+            svg('text', { x: width - R, y: 18, 'text-anchor': 'end', class: 'mb-salary-label' }, `Reference salary: ≈${label}`));
         }
       }
       children.push(svg('line', { x1: x(chosen.salaryCapShare), x2: x(chosen.salaryCapShare), y1: y(chosen[m]), y2: y(reference), class: 'mb-gap' }),
