@@ -66,12 +66,13 @@ async function mountedScenario() {
     const chartTop = q('chart').getBoundingClientRect().top + scrollY;
     check(document.documentElement.scrollWidth <= innerWidth + 1, 'Initial example widens the page');
     const initialExample = one.players.find(p => p.id === q('chart').querySelector('.mb-selected')?.dataset.player);
+    check(q('search').value === '' && q('search').placeholder === 'Search by name' && root.querySelector('label[for="mb-player-search"]').textContent.startsWith('Search player'), 'Initial search is not an empty labeled name search');
     check(initialExample?.label && q('search-result').textContent.startsWith(`Example ${initialExample.name}`) && q('selection-name').textContent.startsWith('Example:'), 'Initial comparison is not a clearly labeled validated example');
     check(scrollY === 0 && document.activeElement !== q('selection-panel'), 'Initial example auto-scrolled or focused the result');
     const exampleBounds = q('example-buttons').getBoundingClientRect();
     check([...q('example-buttons').querySelectorAll('button')].every(button => { const r = button.getBoundingClientRect(); return r.height >= 44 && r.left >= exampleBounds.left - 1 && r.right <= exampleBounds.right + 1; }), 'Examples require horizontal scrolling or have undersized targets');
     q('search').value = ''; q('search').dispatchEvent(new Event('input', { bubbles: true }));
-    check(!q('chart').querySelector('.mb-selected') && q('view-comparison').hidden, 'Editing did not clear the initial example');
+    check(!q('chart').querySelector('.mb-selected') && !q('search-result').textContent.startsWith('Example'), 'Editing did not clear the initial example');
     check(chartTop - (root.getBoundingClientRect().top + scrollY) < Math.min(650, innerHeight * .8), 'Default graph remains too far below controls');
     if (innerWidth >= 1100) check(chartTop < innerHeight * .75, 'Desktop first graph remains too far below the fold');
     check(document.documentElement.scrollWidth <= innerWidth + 1, 'Default page overflows horizontally');
@@ -87,12 +88,13 @@ async function mountedScenario() {
     }
     check(q('period').textContent.includes('Regular season') && q('metric-note').textContent.includes('fill-in'), 'Season scope or plain zero baseline missing');
     const contextPanel = q('context-controls');
-    check(contextPanel.tagName === 'DETAILS' && !contextPanel.open && contextPanel.querySelector('summary').textContent === 'Time span and salary units', 'Named native context disclosure missing or initially open');
+    check(contextPanel.tagName === 'DETAILS' && !contextPanel.open && contextPanel.querySelector('summary').textContent === 'Time span', 'Named native context disclosure missing or initially open');
     check(['season', 'team', 'window', 'reset', 'units'].every(k => root.querySelectorAll(`[data-mb-${k}]`).length === 1), 'Controls are duplicated');
-    check(['season', 'team', 'reset'].every(k => !q(k).closest('details')) && contextPanel.contains(q('window')) && contextPanel.contains(q('units')), 'Primary context/reset is hidden or advanced controls are misplaced');
+    check(['season', 'team', 'reset', 'units'].every(k => !q(k).closest('details')) && contextPanel.contains(q('window')) && !contextPanel.contains(q('units')) && q('units').checkVisibility(), 'Primary context/reset is hidden or advanced controls are misplaced');
     check(q('team').value === '' && !q('period').closest('details') && !q('window-note').closest('details'), 'Collapsed active context is hidden');
     const hero = document.querySelector('.question-band.band');
-    check(hero && parseFloat(getComputedStyle(hero).paddingTop) <= 12.1 && parseFloat(getComputedStyle(hero).paddingBottom) <= 12.1, 'Project compact hero padding override did not apply');
+    check(hero && parseFloat(getComputedStyle(hero).paddingTop) === 16 && parseFloat(getComputedStyle(hero).paddingBottom) === 16, 'Project question-band breathing room did not apply');
+    if (innerWidth > 704) { const nav = document.querySelector('body > header nav'); check(parseFloat(getComputedStyle(nav).paddingTop) === 8 && parseFloat(getComputedStyle(nav).paddingBottom) === 8, 'Roomier desktop navigation padding did not apply'); }
     const hover = (dot, pointerType = 'mouse') => dot.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType }));
     const hoveredName = () => q('chart').querySelector('.mb-hover text')?.textContent;
     const unlabelled = one.players.find(p => !p.label), unlabelledDot = dots().find(d => d.dataset.player === unlabelled?.id);
@@ -147,8 +149,7 @@ async function mountedScenario() {
     };
     choose(player); connector();
     check(!q('comparison-details').open && q('selected-percentile').closest('details') === q('comparison-details') && !q('selected-gap').closest('details'), 'Primary gap or secondary comparison hierarchy is wrong');
-    check(q('view-comparison').contains(q('search-result')) && q('search-instructions').textContent === '' && q('view-comparison').getBoundingClientRect().height >= 44, 'Selected feedback is not one accessible comparison action');
-    check(!q('view-comparison').hidden && q('view-comparison').getAttribute('href') === '#mb-player-comparison', 'Search lacks a route to its selected comparison');
+    check(q('search-result').getAttribute('role') === 'status' && getComputedStyle(q('search-result')).position === 'absolute' && getComputedStyle(q('search-result')).clipPath === 'inset(50%)' && q('search-instructions').textContent === '' && !root.querySelector('[data-mb-view-comparison]'), 'Selected feedback is not screen-reader-only or a visible comparison line remains');
     check(q('guide').textContent.startsWith('Select a dot or search.') && q('guide').getBoundingClientRect().top < q('chart').getBoundingClientRect().top && root.querySelector('.mb-ranked-link').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Invitation or ranked route is below the plot');
     check([...root.querySelector('.mb-comparison').children].every(group => group.tagName === 'DIV' && [...group.children].map(el => el.tagName).join('|') === 'DT|DD'), 'Comparison description-list groups contain invalid children');
     check(q('selected-salary-basis').parentElement === q('selected-salary').parentElement && q('selected-salary-basis').parentElement.tagName === 'DD', 'Salary and its basis are not in the same pay definition');
@@ -192,7 +193,7 @@ async function mountedScenario() {
     q('search').value = 'zzzz'; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Draft input retained gap size');
     check(!q('chart').querySelector('.mb-selected') && dots().length === 0 && !q('rows').querySelector('[data-player]'), 'Typing did not clear selection and filter');
-    check(!q('no-matches').hidden && q('count').textContent.includes('0 search matches'), 'No-match state is not identified beside the plot');
+    check(!q('no-matches').hidden && q('count').textContent.includes('0 search matches') && q('search-instructions').textContent.includes('No players found') && q('search-result').textContent === q('search-instructions').textContent, 'No-match state is not visible and announced beside the plot');
     q('clear-search').click(); check(q('search').value === '' && q('no-matches').hidden && dots().length === one.players.length, 'Clear search did not restore chart peers');
     choose(player); check(q('team').getBoundingClientRect().height >= 44, 'Visible team control is unusable'); change('team', 'NYK');
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
@@ -231,22 +232,23 @@ async function mountedScenario() {
     check(q('search').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
     check(q('empty').getBoundingClientRect().height > 0 && getComputedStyle(q('chart')).display === 'none' && getComputedStyle(q('selection-panel')).display === 'none' && getComputedStyle(q('chart').closest('.mb-plot').querySelector('.mb-y')).display === 'none' && q('chart').closest('.mb-stage').getBoundingClientRect().height < 300, 'Unavailable chart did not compact to an honest recovery panel');
     check(q('retry').getBoundingClientRect().height >= 44 && q('reset').getBoundingClientRect().height >= 44, 'Recovery actions are not visible');
-    check(q('guide').hidden && q('no-matches').hidden && q('view-comparison').hidden && !q('retry').hidden && q('snapshot').querySelector('h3').textContent.includes('2025–26'), 'Failure guidance or saved record label is wrong');
+    check(q('guide').hidden && q('no-matches').hidden && !q('retry').hidden && q('snapshot').querySelector('h3').textContent.includes('2025–26'), 'Failure guidance or saved record label is wrong');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
     await checkReturns(false);
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Retry did not recover');
     check(!q('search').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
     const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); association((await json(fiveView.url)).views[0], 'lebron');
     q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
-    check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === initialExample.name, 'Reset did not restore the default controls');
+    check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls and empty search');
     check(q('selection-name').textContent === `Example: ${initialExample.name}`, 'Reset did not restore the labeled default example'); gapSize(initialExample, 'war', one);
     check(q('snapshot').querySelector('thead').textContent.includes('gap size') && q('snapshot').querySelector('thead').textContent.includes('LEBRON') && q('rows').closest('table').querySelectorAll('thead th').length === 6, 'Full saved records or the simplified active-metric live table is wrong');
     const priorEntry = index.views.find(v => v.endSeason === initial.endSeason - 1 && v.window === 1), prior = (await json(priorEntry.url)).views[0];
     change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, 'Prior year did not load');
     choose(prior.players[0]); gapSize(prior.players[0], 'war', prior); association(prior, 'war');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
-    check(q('selection-name').textContent === `Example: ${initialExample.name}`, 'Year reset did not restore the labeled default example'); gapSize(initialExample, 'war', one); association(one, 'war');
+    check(q('selection-name').textContent === `Example: ${initialExample.name}` && q('search').value === '', 'Year reset did not restore the labeled default example'); gapSize(initialExample, 'war', one); association(one, 'war');
     change('window', '5'); await wait(() => !q('search').disabled && q('window').value === '5', 'Five-season setup did not recover');
+    check(q('search').value === '', 'Retaining a starter comparison filled the search query');
     const earliest = index.views.filter(v => v.window === 1).sort((a, b) => a.endSeason - b.endSeason)[0];
     change('season', String(earliest.endSeason)); await wait(() => !q('search').disabled && q('window').value === '1', 'Unsupported time span did not fall back safely');
     check(q('status').textContent.includes('5-season span is unavailable') && q('status').textContent.includes('showing 1 season'), 'Automatic span fallback was silent');

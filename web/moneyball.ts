@@ -515,8 +515,7 @@ export function mountMoneyball(root: HTMLElement): void {
       '' : count === 0 ?
       'No players found. Try another name, team or season.' : suggestionModel.state.open ?
       `${count} ${count === 1 ? 'match' : 'matches'}. Use the arrow keys and Enter, or choose a name.` : 'Choose a suggested name to select a player.';
-    txt('search-result', chosen ? message : ''); txt('search-instructions', chosen ? '' : message);
-    get('view-comparison').hidden = !chosen;
+    txt('search-result', message); txt('search-instructions', chosen ? '' : message);
   }
   function updateSuggestions() {
     suggestionModel.update(search.disabled ? null : active, team.value, search.value);
@@ -525,7 +524,7 @@ export function mountMoneyball(root: HTMLElement): void {
   function commitPlayer(id: string, fromSearch = false, asExample = false): boolean {
     const entry = resolveSearchChoice(active, team.value, fromSearch ? search.value : '', id);
     if (!entry) { closeSuggestions(); searchStatus(); return false; }
-    selected = entry.id; exampleSelection = asExample ? entry.id : ''; search.value = entry.name;
+    selected = entry.id; exampleSelection = asExample ? entry.id : ''; search.value = asExample ? '' : entry.name;
     if (fromSearch) search.focus({ preventScroll: true });
     closeSuggestions(); render(); return true;
   }
@@ -534,9 +533,9 @@ export function mountMoneyball(root: HTMLElement): void {
     closeSuggestions();
     bundle = null; active = null; setControls(false);
     chart.replaceChildren(); table.replaceChildren(); tableDirty = true;
-    txt('search-result', '');
-    txt('search-instructions', message.startsWith('Loading') ? 'Checking the selected view…' : 'Search is unavailable until a view loads.');
-    get('view-comparison').hidden = true; get('no-matches').hidden = true;
+    const searchMessage = message.startsWith('Loading') ? 'Checking the selected view…' : 'Search is unavailable until a view loads.';
+    txt('search-result', searchMessage); txt('search-instructions', searchMessage);
+    get('no-matches').hidden = true;
     txt('empty-title', message.startsWith('Loading') ? 'Loading player comparison…' : 'Player comparison unavailable');
     txt('empty-copy', message.startsWith('Loading') ? 'The selected records are being checked.' : 'Retry or change the season. Saved records are available below.');
     get('retry').hidden = message.startsWith('Loading');
@@ -607,7 +606,7 @@ export function mountMoneyball(root: HTMLElement): void {
       const previousTeam = team.value; team.replaceChildren(option('', 'All teams'), ...[...new Set(active.players.flatMap(p => p.teams))].sort((a, b) => teamName(a, active!.endSeason).localeCompare(teamName(b, active!.endSeason))).map(t => option(t, teamName(t, active!.endSeason))));
       team.value = [...team.options].some(o => o.value === previousTeam) ? previousTeam : '';
       const retained = active.players.find(p => p.id === selected && (!team.value || p.teams.includes(team.value)));
-      selected = retained?.id ?? ''; search.value = retained?.name ?? '';
+      selected = retained?.id ?? ''; search.value = retained && retained.id !== exampleSelection ? retained.name : '';
       txt('window-note', ''); get('window-note').hidden = true;
       const c = active.coverage;
       facts('coverage-facts', [
@@ -665,7 +664,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('table-cost', units.value === 'share' ? 'Pay (% cap)' : active.window === 1 ? 'Pay (USD)' : 'Avg pay (end-cap USD)');
     txt('table-contribution', metricLabel(m, active)); txt('table-residual', `Gap (${m.toUpperCase()})`); txt('table-order', `${viewLabel(active)} · ${metricLabel(m, active)}. Gap = measured contribution minus salary reference; highest first.`);
     const p = active.players.find(p => p.id === selected);
-    get('view-comparison').hidden = !p; txt('selection-context', p ? `${viewLabel(active)} · Regular season${active.window === 1 ? '' : 's'}` : ''); get('selection-context').hidden = !p;
+    txt('selection-context', p ? `${viewLabel(active)} · Regular season${active.window === 1 ? '' : 's'}` : ''); get('selection-context').hidden = !p;
     txt('selection-name', p ? `${p.id === exampleSelection ? 'Example: ' : ''}${p.name}` : 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {
       const copy = playerComparisonCopy(p, m, active, units.value as 'usd' | 'share');

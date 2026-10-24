@@ -25,7 +25,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
       <legend class="mb-sr">Player comparison controls</legend>
       <div class="mb-primary">
         <div class="mb-search" data-mb-search-shell>
-          <label for="mb-player-search">Player <span class="mb-small">(2+ letters)</span></label>
+          <label for="mb-player-search">Search player <span class="mb-small">(2+ letters)</span></label>
           <div class="combobox-shell">
             <input type="search" id="mb-player-search" data-mb-search autocomplete="off" placeholder="Search by name" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="mb-player-suggestions" aria-describedby="mb-search-result" />
             <div id="mb-player-suggestions" class="suggestion-menu" data-mb-suggestions role="listbox" aria-label="Matched players in this view" hidden></div>
@@ -38,15 +38,18 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
         <label>Team<select data-mb-team><option value="">All teams</option></select></label>
         <button type="button" data-mb-reset>Reset</button>
       </div>
-      <div class="mb-search-feedback" id="mb-search-result" role="status" aria-live="polite"><p class="mb-small" data-mb-search-instructions></p><a data-mb-view-comparison href="#mb-player-comparison" hidden><span data-mb-search-result></span> → View comparison</a></div>
+      <p class="mb-small mb-search-instructions" data-mb-search-instructions></p>
+      <p class="mb-sr" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result></p>
+      <div class="mb-secondary mb-salary-controls">
+        <label>Salary units<select data-mb-units aria-describedby="mb-salary-help"><option value="usd">US dollars</option><option value="share">% of salary cap</option></select></label>
+        <p class="mb-small" id="mb-salary-help"><DefinitionHelp id="mb-cap" label="Salary cap / share">Cap share divides reported pay by that season's league salary cap. Multi-season dollars use the ending season's cap.</DefinitionHelp></p>
+      </div>
       <details class="mb-filters" data-mb-context-controls>
-        <summary>Time span and salary units</summary>
+        <summary>Time span</summary>
         <div class="mb-secondary">
           <label>Time span<select data-mb-window aria-describedby="mb-window-help"><option value="1">One season</option><option value="3">Three seasons</option><option value="5">Five seasons</option></select></label>
-          <label>Salary units<select data-mb-units aria-describedby="mb-salary-help"><option value="usd">US dollars</option><option value="share">% of salary cap</option></select></label>
         </div>
         <p class="mb-small mb-note" id="mb-window-help">Multi-season views average across available matched seasons for each player; they are not period totals.</p>
-        <p class="mb-small mb-note" id="mb-salary-help"><DefinitionHelp id="mb-cap" label="Salary cap / share">Cap share divides reported pay by that season's league salary cap. Multi-season dollars use the ending season's cap.</DefinitionHelp></p>
       </details>
     </fieldset>
   </form>
@@ -206,9 +209,9 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
 </script>
 
 <style>
-  /* Tighten only this project's opening so the chart stays in the first viewport. */
+  /* Keep the opening styles scoped to this project. */
   :global(body:has(.moneyball) .draft-flag) { display: none; }
-  :global(body.project--compact:has(.moneyball) .question-band.band) { padding-block: var(--space-xs); }
+  :global(body.project--compact:has(.moneyball) .question-band.band) { padding-block: 16px; }
   :global(body:has(.moneyball) .question-band .project-question) { margin-top: var(--space-2xs); font-size: 1rem; line-height: 1.4; }
   :global(body.project--compact:has(.moneyball) .question-band.band .band-inner h1) { font-size: clamp(2rem, 3vw, 2.75rem); line-height: 1.05; }
   :global(body.project--compact:has(.moneyball) .prose-band) { padding-block: var(--space-s) var(--space-l); }
@@ -233,10 +236,10 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-search { min-width: 0; }
   .mb-search > label { display: block; margin-bottom: 4px; }
   .combobox-shell { position: relative; min-width: 0; }
-  .mb-search-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-xs); font-size: var(--type-small); }
-  .moneyball .mb-search-feedback p { margin: 0; }
-  .mb-search-feedback p:empty { display: none; }
-  .mb-search-feedback a { min-height: 44px; display: block; flex: 1 1 100%; line-height: 1.5; text-underline-offset: .2em; }
+  .moneyball .mb-search-instructions { margin: 0; }
+  .mb-search-instructions:empty { display: none; }
+  .mb-salary-controls { grid-column: 1 / -1; }
+  .moneyball .mb-salary-controls > p { align-self: end; margin: 0; }
   .suggestion-menu { position: absolute; z-index: 10; inset-block-start: 100%; inset-inline: 0; max-height: 18rem; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; border: var(--mb-rule); border-top: 0; background: var(--cream); }
   .suggestion-menu :global(.suggestion-option), .suggestion-menu :global(.no-results) { margin: 0; padding: var(--space-xs) var(--space-s); }
   .suggestion-menu :global(.suggestion-option) { min-height: 44px; box-sizing: border-box; border-top: 1px solid var(--sand); cursor: pointer; touch-action: manipulation; }
@@ -382,11 +385,15 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-methods > p { max-width: 65ch; }
   [data-mb-view-evidence] { overflow-wrap: anywhere; }
   .mb-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @media (min-width: 44.01rem) {
+    :global(body.project--compact:has(.moneyball) > header nav) { padding-block: 8px; }
+    :global(body.project--compact:has(.moneyball) > header nav h2) { font-size: var(--type-body); }
+  }
   @media (min-width: 70rem) {
     .mb-controls { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); column-gap: var(--space-s); }
     .mb-primary { grid-column: 1; grid-row: 1; }
     .mb-visible-context { grid-column: 2; grid-row: 1; }
-    .mb-search-feedback, .mb-filters { grid-column: 1 / -1; }
+    .mb-search-instructions, .mb-filters { grid-column: 1 / -1; }
   }
   @media (max-width: 44rem) {
     :global(body.project--compact:has(.moneyball) > header nav) { flex-wrap: wrap; gap: 0 8px; }
@@ -402,7 +409,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     .mb-visible-context > label:first-child { grid-column: 2; grid-row: 2; }
     .mb-visible-context > label:nth-child(2) { grid-column: 1; grid-row: 3; }
     .mb-visible-context > button { grid-column: 2; grid-row: 3; align-self: end; }
-    .mb-search-feedback, .mb-filters { grid-column: 1 / -1; }
+    .mb-search-instructions, .mb-filters { grid-column: 1 / -1; }
   }
   @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3xs) var(--space-xs); align-items: center; } .mb-comparison .mb-pay-value { display: contents; } .mb-comparison .mb-pay-basis { grid-column: 1 / -1; margin: 0; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media (max-width: 44rem) { :global(body.project--compact:has(.moneyball) .question-band.band .band-inner h1) { font-size: 1.875rem; } }
