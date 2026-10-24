@@ -16,6 +16,7 @@ test('public Moneyball release is discoverable and includes only cleared validat
   const route = '/projects/nba-economics/';
   const html = await readFile(join(build, route, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /noindex|Private preview|Private review only|remain unapproved|TODO_|github\.com\/nanu731\/basketball-econ/);
+  assert.doesNotMatch(html, /Horizontal salary comparison|Salary at this LEBRON level|Show horizontal line and reference square/);
   assert.ok((await readFile(join(build, 'projects/index.html'), 'utf8')).includes(route), 'Project is missing from the public index');
   const sitemaps = await Promise.all((await readdir(build)).filter(name => /^sitemap.*\.xml$/.test(name)).map(name => readFile(join(build, name), 'utf8')));
   assert.ok(sitemaps.some(text => text.includes(route)), 'Project is missing from the sitemap');
@@ -110,7 +111,7 @@ async function mountedScenario() {
     const powell = one.players.find(p => p.name === 'Drake Powell'); check(powell, 'Requested real-player gap example missing');
     choose(powell);
     check(q('selected-gap').textContent === '−3.85' && q('selected-magnitude').textContent.startsWith('−3.94 ×') && q('selected-scale').textContent.includes('about 0.98') && q('selected-magnitude').checkVisibility(), 'Drake Powell raw gap is not accompanied by correct league-scale context');
-    check(!q('salary-unavailable').textContent.includes('remain above') && document.getElementById('mb-gap-size-calculation').parentElement.textContent.includes('Gap in context = signed gap ÷ typical league gap.'), 'Ambiguous prototype wording or missing plain division formula');
+    check(document.getElementById('mb-gap-size-calculation').parentElement.textContent.includes('Gap in context = signed gap ÷ typical league gap.'), 'Missing plain division formula');
     q('controls').focus({ preventScroll: true }); window.scrollTo(0, 0);
     change('metric', 'war'); const baseline = reference();
     const exampleBounds = q('example-buttons').getBoundingClientRect();
@@ -177,6 +178,7 @@ async function mountedScenario() {
     };
     association(one, 'war'); const defaultAssociation = q('million-summary').textContent;
     const gapSize = (chosen, metric, view) => {
+      check(!root.querySelector('[data-mb-salary-prototype], [data-mb-salary-connector], [data-mb-salary-key], .mb-salary-link, .mb-salary-end, .mb-salary-label'), 'Retired horizontal salary comparison survived');
       const abs = view.players.map(p => Math.abs(p.residual[metric])).sort((a, b) => a - b), mid = Math.floor(abs.length / 2);
       const scale = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2, ratio = chosen.residual[metric] / scale;
       const magnitude = Math.abs(ratio), formatted = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? String(Number(magnitude.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(magnitude);
@@ -253,31 +255,6 @@ async function mountedScenario() {
     check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed'); gapSize(team[0], 'war', one); association(one, 'war'); check(q('million-summary').textContent === defaultAssociation, 'Team filter changed league association');
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
     gapSize(player, 'lebron', one);
-    const outside = one.players.find(p => p.lebron > one.models.lebron.curve.at(-1).y);
-    check(outside, 'Actual release needs an out-of-range LEBRON example'); choose(outside);
-    check(!q('salary-prototype').hidden && q('salary-result').hidden && !q('salary-unavailable').hidden && !q('chart').querySelector('.mb-salary-link') && q('selection-name').textContent.includes(outside.name), 'Unsupported prototype removed the player or leaked a salary/connector');
-    check(!q('salary-example').hidden && q('salary-example').getBoundingClientRect().height >= 44, 'Unsupported state has no usable supported-example action');
-    q('salary-example').click();
-    const supported = one.players.find(p => p.id === q('chart').querySelector('.mb-selected')?.dataset.player);
-    const horizontal = () => q('chart').querySelector('.mb-salary-link');
-    check(supported && horizontal() && !q('salary-result').hidden && q('salary-unavailable').hidden && document.activeElement === q('selection-panel'), 'Supported-example choice did not reveal its comparison accessibly');
-    const line = horizontal(), selectedDot = q('chart').querySelector('.mb-selected'), endpoint = q('chart').querySelector('.mb-salary-end');
-    check(line.getAttribute('y1') === line.getAttribute('y2') && line.getAttribute('y1') === selectedDot.getAttribute('cy') && line.getAttribute('x1') === selectedDot.getAttribute('cx'), 'Horizontal connector changed player impact or missed actual pay');
-    const paint = [...reference().matchAll(/[ML]([^,ML]+),([^ML]+)/g)].map(m => [Number(m[1]), Number(m[2])]), targetX = Number(line.getAttribute('x2'));
-    const pi = paint.findIndex(p => p[0] >= targetX), pa = paint[pi - 1], pb = paint[pi];
-    check(pa && pb && Math.abs(Number(line.getAttribute('y2')) - (pa[1] + (pb[1] - pa[1]) * (targetX - pa[0]) / (pb[0] - pa[0]))) < 1e-6 && Math.abs(Number(endpoint.getAttribute('x')) + 4 - targetX) < 1e-6, 'Salary endpoint misses the painted league line');
-    const curve = one.models.lebron.curve, j = curve.findIndex(k => k.y >= supported.lebron), a = curve[j - 1], b = curve[j];
-    const share = a.x + (b.x - a.x) * (supported.lebron - a.y) / (b.y - a.y), dollars = share * one.referenceCapUsd;
-    const approxMoney = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(value);
-    check(q('salary-reference').textContent === `≈${approxMoney(dollars)}` && q('salary-difference').textContent === `${dollars > supported.salaryUsd ? '+' : dollars < supported.salaryUsd ? '−' : ''}${approxMoney(Math.abs(dollars - supported.salaryUsd))}`, 'Prototype reference/difference use incorrect salary units or sign');
-    const shift = .1 * (b.x - a.x) / (b.y - a.y) * one.referenceCapUsd;
-    check(q('salary-sensitivity').textContent.includes(approxMoney(shift)) && q('salary-sensitivity').textContent.includes('not uncertainty') && q('salary-exposure').textContent.includes('minutes'), 'Prototype hides sensitivity or playing-time context');
-    const fixedReference = reference(), fixedSalary = q('salary-reference').textContent;
-    change('team', supported.teams[0]); check(reference() === fixedReference && q('salary-reference').textContent === fixedSalary && horizontal(), 'Team filtering changed inverse league benchmark/support'); change('team', '');
-    q('salary-connector').click(); check(!horizontal() && !q('salary-result').hidden, 'Connector toggle removed facts or retained line'); q('salary-connector').click();
-    change('units', 'share'); check(q('salary-reference').textContent.endsWith('% of cap') && q('salary-difference').textContent.endsWith('percentage points') && horizontal().getAttribute('x2') === line.getAttribute('x2'), 'Cap units changed geometry or confused percentage-point differences'); change('units', 'usd');
-    change('metric', 'war'); check(q('salary-prototype').hidden && !horizontal(), 'LEBRON prototype leaked into WAR'); change('metric', 'lebron');
-    choose(player); connector();
     check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); association(one, 'lebron');
     contextPanel.querySelector('summary').click(); check(contextPanel.open && q('window').getBoundingClientRect().height >= 44, 'Advanced span control is unusable');
     change('window', '3');

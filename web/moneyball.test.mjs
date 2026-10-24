@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows, lebronSalaryReference, viewSourceLinks } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows, viewSourceLinks } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -51,83 +51,6 @@ test('unknown-season cap navigation labels its representative announcement truth
   const before = structuredClone(bundle);
   assert.deepEqual(viewSourceLinks(bundle, view), [{ label: '2025–26 salary cap (representative announcement; no linked announcement for 2026–27)', url: 'https://pr.nba.com/nba-salary-cap-2025-26-season/' }]);
   assert.deepEqual(bundle, before);
-});
-function inverseFixture() {
-  const view = fixture().views[0], source = view.players[0];
-  view.players = Array.from({ length: 41 }, (_, i) => {
-    const salaryCapShare = .1 + (i - 20) / 1000;
-    return { ...source, id: String(999999900 + i), name: `SYNTHETIC INVERSE ${i}`, teams: [i % 2 ? 'OTHER' : 'TEST'], salaryCapShare, salaryUsd: salaryCapShare * view.referenceCapUsd, lebron: 0 };
-  });
-  return { view, player: view.players[10] };
-}
-test('LEBRON inverse converts the displayed reference to dollars with reference-minus-pay signs', () => {
-  const { view, player } = inverseFixture();
-  let result = lebronSalaryReference(view, player);
-  assert.equal(result.status, 'available'); assert.equal(result.share, .1); assert.equal(result.salaryUsd, 10000000);
-  assert.ok(Math.abs(result.differenceUsd - 1000000) < 1e-8);
-  assert.ok(Math.abs(result.percentDifference - 100 / 9) < 1e-12); assert.equal(result.nNearby, 41);
-  const higherPaid = { ...player, salaryUsd: 20000000 };
-  result = lebronSalaryReference(view, higherPaid);
-  assert.equal(result.differenceUsd, -10000000); assert.equal(result.percentDifference, -50);
-  view.referenceCapUsd = 200000000;
-  assert.equal(lebronSalaryReference(view, higherPaid).differenceUsd, 0);
-});
-test('LEBRON inverse finds one exact internal knot and uses piecewise interpolation between knots', () => {
-  const { view, player } = inverseFixture();
-  view.models.lebron.curve[2].y = 2;
-  assert.equal(lebronSalaryReference(view, player).share, .1);
-  player.lebron = .2;
-  const result = lebronSalaryReference(view, player);
-  assert.equal(result.status, 'available'); assert.ok(Math.abs(result.share - .11) < 1e-15); assert.ok(Math.abs(result.salaryUsd - 11000000) < 1e-8);
-});
-test('LEBRON inverse never extrapolates and treats curve endpoints as mathematical crossings', () => {
-  const { view, player } = inverseFixture();
-  for (const value of [-1.001, 1.001]) {
-    assert.deepEqual(lebronSalaryReference(view, { ...player, lebron: value }), { status: 'outside-range', share: null, salaryUsd: null, differenceUsd: null, percentDifference: null, nNearby: 0 });
-  }
-  for (const value of [-1, 1]) assert.equal(lebronSalaryReference(view, { ...player, lebron: value }).status, 'sparse');
-});
-test('LEBRON inverse withholds sparse crossings for count, both-sided and distinct-salary support', () => {
-  const { view, player } = inverseFixture(), source = view.players[0];
-  const cohorts = [Array.from({ length: 19 }, (_, i) => .091 + i / 1000), Array.from({ length: 20 }, (_, i) => .1 + i / 1000),
-    [...Array(4).fill(.09), ...Array(16).fill(.11)], [...Array(5).fill(.09), ...Array(5).fill(.095), ...Array(5).fill(.105), ...Array(5).fill(.11)]];
-  for (const shares of cohorts) {
-    view.players = shares.map((salaryCapShare, i) => ({ ...source, id: String(i + 1), salaryCapShare }));
-    assert.deepEqual(lebronSalaryReference(view, player), { status: 'sparse', share: null, salaryUsd: null, differenceUsd: null, percentDifference: null, nNearby: shares.length });
-  }
-});
-test('LEBRON inverse includes the support window boundaries and permits exactly twenty observations', () => {
-  const { view, player } = inverseFixture(), source = view.players[0];
-  view.players = [.08, .09, .1, .11, .12].flatMap(salaryCapShare => Array.from({ length: 4 }, (_, i) => ({ ...source, salaryCapShare, id: `${salaryCapShare}-${i}` })));
-  assert.equal(lebronSalaryReference(view, player).status, 'available'); assert.equal(lebronSalaryReference(view, player).nNearby, 20);
-});
-test('LEBRON inverse keeps full-cohort support across team and draft-search filtering', () => {
-  const { view, player } = inverseFixture(), before = structuredClone(view);
-  const expected = lebronSalaryReference(view, player);
-  assert.ok(filterPlayers(view, 'TEST', player.name).length < 20);
-  assert.deepEqual(lebronSalaryReference(view, player), expected); assert.deepEqual(view, before);
-});
-test('LEBRON inverse withholds flat, reversing and numerically unrepresentable slopes', () => {
-  const { view, player } = inverseFixture();
-  for (const points of [[[0, 0], [.1, 0], [.2, 1]], [[0, -1], [.1, 1], [.2, 0]], [[0, -1e308], [.1, 1e308]],
-    [[0, 0], [1e308, Number.MIN_VALUE]], [[0, 0], [Number.MIN_VALUE, 1]]]) {
-    view.models.lebron.curve = points.map(([x, y]) => ({ x, y }));
-    assert.equal(lebronSalaryReference(view, player).status, 'non-invertible');
-  }
-});
-test('LEBRON inverse accepts a near-flat positive finite slope without inventing an epsilon cutoff', () => {
-  const { view, player } = inverseFixture();
-  view.models.lebron.curve = [{ x: 0, y: 0 }, { x: .2, y: 2e-300 }];
-  const result = lebronSalaryReference(view, { ...player, lebron: 1e-300 });
-  assert.equal(result.status, 'available'); assert.equal(result.share, .1); assert.equal(result.salaryUsd, 10000000);
-});
-test('LEBRON inverse rejects nonfinite conversion arithmetic but leaves zero-pay percentage undefined', () => {
-  const { view, player } = inverseFixture();
-  const zero = lebronSalaryReference(view, { ...player, salaryUsd: 0 });
-  assert.equal(zero.status, 'available'); assert.equal(zero.differenceUsd, 10000000); assert.equal(zero.percentDifference, null);
-  assert.equal(lebronSalaryReference(view, { ...player, salaryUsd: Number.MIN_VALUE }).status, 'non-invertible');
-  view.models.lebron.curve = [{ x: 0, y: -1 }, { x: 2, y: 0 }, { x: 3, y: 1 }]; view.referenceCapUsd = 1e308;
-  assert.equal(lebronSalaryReference(view, player).status, 'non-invertible');
 });
 const cases = {
   'salary coverage over denominator': b => { b.views[0].coverage.includedKnownSalaryUsd = 7000000; },
