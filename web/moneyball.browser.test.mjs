@@ -111,6 +111,9 @@ async function mountedScenario() {
       const abs = view.players.map(p => Math.abs(p.residual[metric])).sort((a, b) => a - b), mid = Math.floor(abs.length / 2);
       const scale = abs.length % 2 ? abs[mid] : (abs[mid - 1] + abs[mid]) / 2, ratio = chosen.residual[metric] / scale;
       const magnitude = Math.abs(ratio), formatted = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? String(Number(magnitude.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(magnitude);
+      const ending = `${view.endSeason - 1}–${String(view.endSeason % 100).padStart(2, '0')}`;
+      check(!q('selection-context').hidden && q('selection-context').textContent.includes(ending) && q('period').textContent.includes(ending) && q('selection-context').textContent.includes('Regular season'), 'Selected result or chart lacks its active season basis');
+      if (view.window > 1) check(q('selection-context').textContent.includes(`${view.window} seasons`) && q('selection-context').textContent.includes('averages over available matched seasons'), 'Selected multi-season basis is incomplete');
       check(q('selected-magnitude').textContent.startsWith(`${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${formatted} × typical league gap`), 'Selected magnitude differs from the full league cohort');
       check(q('search-result').textContent.includes(chosen.name) && q('search-result').textContent.includes(q('selected-gap').textContent) && q('search-result').textContent.includes('vs salary reference'), 'Search feedback lacks the selected native gap');
       check(q('table-contribution')?.textContent.includes(metric.toUpperCase()), 'Active live-table contribution metric is missing or stale');
@@ -170,20 +173,22 @@ async function mountedScenario() {
     check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); association(one, 'lebron');
     contextPanel.querySelector('summary').click(); check(contextPanel.open && q('window').getBoundingClientRect().height >= 44, 'Advanced span control is unusable');
     change('window', '3');
-    check(fields.every(f => q(`million-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Loading retained stale guided/result fields');
+    check(fields.every(f => q(`million-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '' && q('selection-context').hidden && q('selection-context').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
     const multiPlayer = multi.players.find(p => p.id === player.id); gapSize(multiPlayer, 'lebron', multi);
     check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + ' / 100', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
     association(multi, 'lebron'); check(q('million-context').textContent.includes('cap-equivalent') && q('million-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
-    readableMetric(); check(q('period').textContent.includes('3-season averages') && q('window-note').textContent.includes('available matched seasons') && !q('window-note').closest('details'), 'Average context was hidden');
+    readableMetric(); check(q('period').textContent.includes('3 seasons') && q('window-note').textContent.includes('available matched seasons') && !q('window-note').closest('details'), 'Average context was hidden');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); hover(dots()[0]); change('window', '5'); check(!hoveredName(), 'Loading retained hover');
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(!hoveredName(), 'Failed view retained hover');
     check(fields.every(f => q(`million-${f}`).textContent === ''), 'A contrast field stayed stale');
-    check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Failed view retained new results/actions');
+    check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '' && q('selection-context').hidden && q('selection-context').textContent === '', 'Failed view retained new results/actions');
     check(!q('reset').disabled && q('units').disabled, 'Reset lost recovery availability outside the controls fieldset');
     check(q('search').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
+    check(q('empty').getBoundingClientRect().height > 0 && getComputedStyle(q('chart')).display === 'none' && getComputedStyle(q('selection-panel')).display === 'none' && getComputedStyle(q('chart').closest('.mb-plot').querySelector('.mb-y')).display === 'none' && q('chart').closest('.mb-stage').getBoundingClientRect().height < 300, 'Unavailable chart did not compact to an honest recovery panel');
+    check(q('retry').getBoundingClientRect().height >= 44 && q('reset').getBoundingClientRect().height >= 44, 'Recovery actions are not visible');
     check(q('guide').hidden && q('no-matches').hidden && q('view-comparison').hidden && !q('retry').hidden && q('snapshot').querySelector('h3').textContent.includes('2025–26'), 'Failure guidance or saved record label is wrong');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Retry did not recover');
@@ -197,7 +202,7 @@ async function mountedScenario() {
     change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, 'Prior year did not load');
     choose(prior.players[0]); gapSize(prior.players[0], 'war', prior); association(prior, 'war');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
-    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Year reset retained gap size'); association(one, 'war');
+    check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '' && q('selection-context').hidden && q('selection-context').textContent === '', 'Year reset retained gap size'); association(one, 'war');
     change('window', '5'); await wait(() => !q('search').disabled && q('window').value === '5', 'Five-season setup did not recover');
     const earliest = index.views.filter(v => v.window === 1).sort((a, b) => a.endSeason - b.endSeason)[0];
     change('season', String(earliest.endSeason)); await wait(() => !q('search').disabled && q('window').value === '1', 'Unsupported time span did not fall back safely');
@@ -212,6 +217,7 @@ async function mountedScenario() {
     for (const [term, targetId] of [['mb-gap-size', 'mb-gap-size-calculation'], ['mb-value-percentile', 'mb-percentile-calculation']]) {
       const link = root.querySelector(`definition-help[data-term="${term}"] [data-detail-target]`), target = document.getElementById(targetId);
       check(link?.dataset.detailTarget === targetId && target?.matches('h4[data-reference-target][tabindex="-1"]'), 'Full calculation link does not target its own focusable formula heading');
+      const back = target.nextElementSibling; check(back?.matches('a[href="#mb-player-comparison"]') && back.textContent === 'Back to player comparison', 'Calculation lacks a nearby native return link');
     }
     document.body.dataset.moneyballTest = 'passed';
   } catch (error) {

@@ -519,7 +519,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('empty-title', message.startsWith('Loading') ? 'Loading player comparison…' : 'Player comparison unavailable');
     txt('empty-copy', message.startsWith('Loading') ? 'The selected records are being checked.' : 'Retry or change the season. Saved records are available below.');
     get('retry').hidden = message.startsWith('Loading');
-    txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
+    txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; txt('selection-context', ''); get('selection-context').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
     for (const key of ['selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-magnitude', 'selected-scale', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-summary').hidden = true; get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.');
     for (const field of ['summary', 'context', 'anchor', 'difference', 'range', 'support', 'precision']) txt(`million-${field}`, '');
@@ -596,7 +596,8 @@ export function mountMoneyball(root: HTMLElement): void {
     get('war-help').hidden = m !== 'war'; get('lebron-help').hidden = m !== 'lebron';
     metric.options[0].textContent = warOptionLabel(active.window);
     metric.options[1].textContent = 'Impact rate · LEBRON';
-    txt('period', active.window === 1 ? ' · Regular season' : ` · Regular seasons · ${active.window}-season averages`);
+    const context = `${viewLabel(active)} · Regular season${active.window === 1 ? '' : 's · averages over available matched seasons'}`;
+    txt('period', ` · ${context}`);
     txt('metric-note', m === 'war' ? 'Zero: a readily available fill-in player.' : 'Zero: league-average impact.');
     txt('coverage-summary', `League coverage: ${active.coverage.matched} matched of ${active.coverage.eligible} eligible player records.`);
     get('selected-key').hidden = !selected; get('peer-key').dataset.hollow = String(!!selected);
@@ -620,7 +621,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('table-cost', units.value === 'share' ? 'Compensation (% cap)' : active.window === 1 ? 'Compensation (USD)' : 'Avg compensation (end-cap USD)');
     txt('table-contribution', metricLabel(m, active)); txt('table-residual', `Above / below reference (${m.toUpperCase()})`); txt('table-order', `Ordered by ${m.toUpperCase()} contribution gap, highest first.`);
     const p = active.players.find(p => p.id === selected);
-    get('view-comparison').hidden = !p;
+    get('view-comparison').hidden = !p; txt('selection-context', p ? context : ''); get('selection-context').hidden = !p;
     txt('selection-name', p ? `${p.id === exampleSelection ? 'Example: ' : ''}${p.name}` : 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {
       const copy = playerComparisonCopy(p, m, active);

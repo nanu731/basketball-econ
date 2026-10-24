@@ -68,6 +68,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     <div class="mb-legend" aria-label="Chart legend"><button type="button" data-mb-find-player disabled>Find a player</button><span><i class="mb-dot-key" data-mb-peer-key aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span data-mb-selected-key hidden><i class="mb-selected-key" aria-hidden="true"></i>Selected player</span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">The fitted league line estimates contribution at each salary. A player's comparison is the vertical gap from that line.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Range for the reference">The shading describes uncertainty in the fitted league line while treating player scores as fixed. It is not uncertainty in an individual player's impact.</DefinitionHelp></span></div>
       <section id="mb-player-comparison" class="mb-selection" aria-label="Selected player" data-mb-selection-panel tabindex="-1">
         <h3 data-mb-selection-name aria-live="polite" hidden>Player comparison</h3>
+        <p class="mb-small" data-mb-selection-context hidden></p>
         <p data-mb-selection>Choose an example or search for a player.</p>
         <div data-mb-comparison hidden>
           <dl class="mb-answer"><dt><DefinitionHelp id="mb-residual" label="Above / below salary reference">The player's measured contribution minus the league line at that pay. Positive is above the line; negative is below it.</DefinitionHelp></dt><dd data-mb-selected-gap></dd></dl>
@@ -162,8 +163,10 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
       <p class="mb-small">This is an existing supported pair on the league reference, not two observed players. Both salaries require enough nearby matched observations. The range uses the two fitted points jointly, treating supplied player scores as fixed; it does not measure uncertainty in an individual player's impact or include provider-score uncertainty. Displayed values are rounded; calculations use unrounded numbers. Source records and model details are in these notes.</p>
     </section>
 <h4 id="mb-gap-size-calculation" tabindex="-1" data-reference-target>Gap size</h4>
+<a class="mb-back-comparison" href="#mb-player-comparison">Back to player comparison</a>
 <p>The typical league gap is the median distance from the salary-reference line: sort all matched players’ distances, ignoring which side of the line they are on, and take the middle distance (average the middle two for an even count). The selected player is included. For each metric/window, divide the saved signed contribution gap by this median absolute gap. Calculations use unrounded numbers; only the displayed values are rounded. The method is median-absolute-visible-gap-v1: no centering, normal-consistency multiplier or normal probabilities. The scale and count are shown beside a selected player and in the build records. Zero scales or ratios that cannot be represented safely are unavailable; no players are dropped and no alternative denominator is substituted.</p><p>This descriptive calculation needs no normal distribution assumption. It is not significance, salary-conditional rarity or uncertainty in a provider score. Gaps can vary more at some salaries than others. A stable denominator does not make the fitted salary curve resistant to outliers. Scores are relative to their own cohort: the same Gap size in different seasons or windows can represent different native contribution gaps and ranks.</p>
 <h4 id="mb-percentile-calculation" tabindex="-1" data-reference-target>Gap percentile</h4>
+<a class="mb-back-comparison" href="#mb-player-comparison">Back to player comparison</a>
 <p>For each contribution measure and window, the percentile compares the player's gap from the salary reference with all eligible matched players in that view. Larger gaps rank higher. It counts every smaller gap and half of every exact tie, including the player, then divides by the full cohort size. Only the displayed percentile is rounded to one decimal.</p><p>Ranking uses the exact saved numbers for the gaps, not the rounded values on the page. A zero gap need not be the 50th percentile; the endpoints need not be 0 and 100. Filters preserve the full league cohort. Gaps can vary more at some salary levels than others. This rank does not measure how unusual a gap is, uncertainty, overall talent, causal value or return per dollar.</p>
           <h4>Saved default sources and release status</h4>
           {data ? <><p>Saved {viewLabel(data.views[0])} · {data.dataVersion}. {data.publication.note}</p><ul>{data.sources.map(source => <li><a href={source.url} rel="noreferrer">{source.label}</a> · retrieved {source.retrieved} · <code>{source.version}</code></li>)}</ul></> : <p>No validated default bundle is available.</p>}
@@ -263,6 +266,12 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-empty h3 { margin: 0 0 var(--space-xs); font-size: var(--type-h3); }
   .mb-empty p { max-width: 35ch; font-size: 1rem; margin: 0 0 var(--space-s); }
   .mb-empty[hidden], [hidden] { display: none !important; }
+  .mb-chart-layout:has(.mb-empty:not([hidden])) :is(.mb-axis, .mb-legend, .mb-selection, .mb-match-count, .mb-note, [data-mb-chart]) { display: none; }
+  .mb-chart-layout:has(.mb-empty:not([hidden])) .mb-stage { min-height: 0; }
+  .mb-chart-layout:has(.mb-empty:not([hidden])) .mb-empty { position: static; }
+  .mb-chart-layout:has(.mb-empty:not([hidden])) .mb-plot { padding: 0; }
+  .mb-back-comparison { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: var(--space-xs); font-size: 1rem; text-underline-offset: .2em; }
+
   .mb-selection { padding: var(--space-s) var(--space-xs); border-top: var(--mb-rule); }
   .mb-selection h3 { font-size: 1.5rem; line-height: 1.2; margin: 0 0 var(--space-2xs); }
   .mb-answer { margin: 0 0 var(--space-xs); }
