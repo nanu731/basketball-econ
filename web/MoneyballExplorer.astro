@@ -79,8 +79,7 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
         <p class="mb-small" data-mb-selection-context hidden></p>
         <p data-mb-selection>Select a dot, choose an example or search for a player.</p>
         <div data-mb-comparison hidden>
-          <p class="mb-small" data-mb-selected-unit></p>
-          <dl class="mb-answer"><dt><DefinitionHelp id="mb-residual" label="Above / below salary reference">The player's measured contribution minus the league line at that pay. Positive is above the line; negative is below it.</DefinitionHelp></dt><dd><span data-mb-selected-gap></span> <small data-mb-selected-direction></small></dd></dl>
+          <dl class="mb-answer"><dt><DefinitionHelp id="mb-residual" label="Above / below salary reference">The player's measured contribution minus the league line at that pay. Positive is above the line; negative is below it.</DefinitionHelp></dt><dd><span data-mb-selected-gap></span> <small data-mb-selected-direction></small><small class="mb-gap-unit" data-mb-selected-unit></small></dd></dl>
           <div class="mb-gap-context">
             <p class="mb-gap-size"><DefinitionHelp id="mb-gap-size" label="Gap in context" detailTarget="mb-gap-size-calculation" detailLabel="Full calculation">Divide the player's signed gap by the median distance from the line for all matched league players in this view. −2× means twice that typical distance below the line; +2× means twice it above.</DefinitionHelp><br /><span data-mb-selected-magnitude></span></p>
             <p class="mb-small">The number counts typical league gaps from the line. Minus means below; plus means above. It describes size, not statistical significance.</p>
@@ -230,6 +229,7 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
     </section>
 <h4 id="mb-gap-size-calculation" tabindex="-1" data-reference-target>Gap in context: standardized distance</h4>
 <a class="mb-back-comparison" data-mb-return href="#mb-snapshot-title">Back to saved records</a>
+<p><strong>Gap in context = signed gap ÷ typical league gap.</strong> Minus means below the line; plus means above.</p>
 <p>The typical league gap is the median distance from the salary-reference line: sort all matched players’ distances, ignoring which side of the line they are on, and take the middle distance (average the middle two for an even count). The selected player is included. For each metric/window, divide the saved signed contribution gap by this median absolute gap. Calculations use unrounded numbers; only the displayed values are rounded. The method is median-absolute-visible-gap-v1: no centering, normal-consistency multiplier or normal probabilities. The scale and count are shown beside a selected player and in the build records. Zero scales or ratios that cannot be represented safely are unavailable; no players are dropped and no alternative denominator is substituted.</p><p>This descriptive calculation needs no normal distribution assumption. It is not significance, salary-conditional rarity or uncertainty in a provider score. Gaps can vary more at some salaries than others. A stable denominator does not make the fitted salary curve resistant to outliers. Scores are relative to their own cohort: the same Gap size in different seasons or windows can represent different native contribution gaps and ranks.</p>
 <h4 id="mb-percentile-calculation" tabindex="-1" data-reference-target>Gap percentile</h4>
 <a class="mb-back-comparison" data-mb-return href="#mb-snapshot-title">Back to saved records</a>
@@ -364,6 +364,7 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
   .mb-answer { margin: 0 0 var(--space-xs); }
   .mb-answer dt { font-size: var(--type-small); }
   .mb-answer dd small { font: 1rem/1.35 var(--font-body); }
+  .mb-answer .mb-gap-unit { display: block; margin-top: var(--space-3xs); }
   .mb-pay-basis { display: block; margin: var(--space-3xs) 0 0; font: var(--type-small)/1.35 var(--font-body); }
   .mb-controls-return, #mb-scroll-help a, .mb-ranked-link { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--type-small); }
   .mb-answer dd { margin: var(--space-2xs) 0 0; font: 600 1.5rem/1.25 var(--font-numeric); }

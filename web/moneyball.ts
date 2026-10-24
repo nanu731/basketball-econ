@@ -743,7 +743,7 @@ export function mountMoneyball(root: HTMLElement): void {
         get('salary-example').hidden = !example;
         get('salary-example').dataset.player = example?.id ?? '';
         txt('salary-example', example ? `Try a supported comparison: ${example.name}` : '');
-        txt('salary-unavailable', match.status === 'outside-range' ? 'This impact is outside the league line’s fitted range. No comparison salary is shown; the player’s actual pay and contribution remain above.' : match.status === 'sparse' ? 'Too few nearby salaries support this intersection. No comparison salary is shown.' : 'This line has no stable, unique salary intersection. No comparison salary is shown.');
+        txt('salary-unavailable', match.status === 'outside-range' ? 'This impact is outside the league line’s fitted range. No comparison salary is shown; actual pay and contribution still appear in the player details.' : match.status === 'sparse' ? 'Too few nearby salaries support this intersection. No comparison salary is shown.' : 'This line has no stable, unique salary intersection. No comparison salary is shown.');
         txt('salary-reference', ''); txt('salary-difference', ''); txt('salary-basis', ''); txt('salary-sensitivity', '');
         if (available) {
           const share = units.value === 'share', gap = share ? (match.share! - p.salaryCapShare) * 100 : match.differenceUsd!;

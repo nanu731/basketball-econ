@@ -99,6 +99,7 @@ async function mountedScenario() {
     check(q('metric').value === 'lebron' && q('metric').selectedOptions[0].textContent.includes('LEBRON') && q('metric-note').textContent.includes('league-average'), 'LEBRON is not the labeled initial contribution view');
     check(q('selected-magnitude').checkVisibility() && !q('selected-magnitude').closest('details') && q('selected-scale').checkVisibility() && q('selected-cohort').checkVisibility(), 'Standardized gap context is buried or missing');
     check(q('selected-magnitude').closest('.mb-gap-context').textContent.includes('not statistical significance'), 'Visible gap context implies significance');
+    check(q('selected-unit').closest('dd') === q('selected-gap').closest('dd'), 'Native unit is not beside the primary gap');
     check(document.getElementById('mb-metric-definitions')?.textContent.includes('formulas') && root.textContent.includes('complete numerical LEBRON-to-WAR conversion') && root.textContent.includes('gᵢ = rᵢ / median'), 'Metric definitions, provider formula boundary or exact standardized-gap calculation missing');
     const chartTop = q('chart').getBoundingClientRect().top + scrollY;
     check(document.documentElement.scrollWidth <= innerWidth + 1, 'Initial example widens the page');
@@ -109,6 +110,7 @@ async function mountedScenario() {
     const powell = one.players.find(p => p.name === 'Drake Powell'); check(powell, 'Requested real-player gap example missing');
     choose(powell);
     check(q('selected-gap').textContent === '−3.85' && q('selected-magnitude').textContent.startsWith('−3.94 ×') && q('selected-scale').textContent.includes('about 0.98') && q('selected-magnitude').checkVisibility(), 'Drake Powell raw gap is not accompanied by correct league-scale context');
+    check(!q('salary-unavailable').textContent.includes('remain above') && document.getElementById('mb-gap-size-calculation').parentElement.textContent.includes('Gap in context = signed gap ÷ typical league gap.'), 'Ambiguous prototype wording or missing plain division formula');
     q('controls').focus({ preventScroll: true }); window.scrollTo(0, 0);
     change('metric', 'war'); const baseline = reference();
     const exampleBounds = q('example-buttons').getBoundingClientRect();
