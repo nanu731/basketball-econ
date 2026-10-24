@@ -81,7 +81,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
           <dl class="mb-comparison">
             <div><dt>Measured contribution</dt><dd data-mb-selected-contribution></dd></div>
             <div><dt>Reference at this pay</dt><dd data-mb-selected-reference></dd></div>
-            <div><dt>Reported pay</dt><dd data-mb-selected-salary></dd><p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p></div>
+            <div><dt>Reported pay</dt><dd class="mb-pay-value"><span data-mb-selected-salary></span><p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p></dd></div>
           </dl>
           <p class="mb-small" data-mb-selected-observed hidden></p>
           <details class="mb-comparison-details" data-mb-comparison-details><summary>More comparison details</summary>
@@ -403,7 +403,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     .mb-visible-context > button { grid-column: 2; grid-row: 3; align-self: end; }
     .mb-search-feedback, .mb-filters { grid-column: 1 / -1; }
   }
-  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3xs) var(--space-xs); align-items: center; } .mb-comparison .mb-pay-basis { grid-column: 1 / -1; margin: 0; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
+  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3xs) var(--space-xs); align-items: center; } .mb-comparison .mb-pay-value { display: contents; } .mb-comparison .mb-pay-basis { grid-column: 1 / -1; margin: 0; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media (max-width: 44rem) { :global(body.project--compact:has(.moneyball) .question-band.band .band-inner h1) { font-size: 1.875rem; } }
   @media print { .mb-controls, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

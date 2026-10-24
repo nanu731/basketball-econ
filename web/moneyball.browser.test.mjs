@@ -146,8 +146,11 @@ async function mountedScenario() {
     check(q('view-comparison').contains(q('search-result')) && q('search-instructions').textContent === '' && q('view-comparison').getBoundingClientRect().height >= 44, 'Selected feedback is not one accessible comparison action');
     check(!q('view-comparison').hidden && q('view-comparison').getAttribute('href') === '#mb-player-comparison', 'Search lacks a route to its selected comparison');
     check(q('guide').textContent.startsWith('Select a dot or search.') && q('guide').getBoundingClientRect().top < q('chart').getBoundingClientRect().top && root.querySelector('.mb-ranked-link').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Invitation or ranked route is below the plot');
-    check(!q('selected-salary-basis').closest('dd') && q('selected-salary-basis').previousElementSibling === q('selected-salary'), 'Salary basis is not directly after the pay value, outside its definition');
-    if (innerWidth <= 704) check(q('selected-salary-basis').getBoundingClientRect().width > q('comparison').getBoundingClientRect().width * .9, 'Phone salary basis is trapped in a narrow value column');
+    check([...root.querySelector('.mb-comparison').children].every(group => group.tagName === 'DIV' && [...group.children].map(el => el.tagName).join('|') === 'DT|DD'), 'Comparison description-list groups contain invalid children');
+    check(q('selected-salary-basis').parentElement === q('selected-salary').parentElement && q('selected-salary-basis').parentElement.tagName === 'DD', 'Salary and its basis are not in the same pay definition');
+    const basisBounds = q('selected-salary-basis').getBoundingClientRect(), payBounds = q('selected-salary').getBoundingClientRect();
+    if (innerWidth <= 704) check(basisBounds.width > q('comparison').getBoundingClientRect().width * .9, 'Phone salary basis is trapped in a narrow value column');
+    else check(Math.abs(basisBounds.left - payBounds.left) < 1 && basisBounds.top >= payBounds.bottom, 'Desktop salary basis is not aligned below its pay value');
     const legend = q('chart').closest('.mb-chart-layout').querySelector('.mb-legend');
     check(legend.getBoundingClientRect().top < q('selection-panel').getBoundingClientRect().top && legend.contains(q('find-player')), 'Legend/search alternative is not between plot and facts');
     q('comparison-details').open = true; gapSize(player, 'war', one); check(q('million-summary').textContent === defaultAssociation, 'Player search changed league association');
