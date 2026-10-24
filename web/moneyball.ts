@@ -65,6 +65,31 @@ export function interpolate(curve: Knot[], x: number): number {
   const value = a.y + rise * (offset / run);
   return [rise, offset, run, value].every(Number.isFinite) ? value : NaN;
 }
+/** Geometric conversion of the visible LEBRON reference, not a salary prediction. */
+export function lebronSalaryReference(view: View, p: Player): { status: 'available' | 'outside-range' | 'non-invertible' | 'sparse'; share: number | null; salaryUsd: number | null; differenceUsd: number | null; percentDifference: number | null; nNearby: number } {
+  const unavailable = (status: 'outside-range' | 'non-invertible' | 'sparse', nNearby = 0) => ({ status, share: null, salaryUsd: null, differenceUsd: null, percentDifference: null, nNearby });
+  const curve = view.models.lebron.curve;
+  if (curve.length < 2 || !Number.isFinite(p.lebron) || !Number.isFinite(p.salaryUsd) || p.salaryUsd < 0 || !Number.isFinite(view.referenceCapUsd) || view.referenceCapUsd <= 0) return unavailable('non-invertible');
+  for (let i = 0; i < curve.length; i++) {
+    const k = curve[i], a = curve[i - 1];
+    if (!Number.isFinite(k.x) || k.x < 0 || !Number.isFinite(k.y)) return unavailable('non-invertible');
+    if (a) {
+      const rise = k.y - a.y, run = k.x - a.x, slope = rise / run;
+      if (![rise, run, slope].every(Number.isFinite) || rise <= 0 || run <= 0 || slope <= 0) return unavailable('non-invertible');
+    }
+  }
+  if (p.lebron < curve[0].y || p.lebron > curve[curve.length - 1].y) return unavailable('outside-range');
+  const knot = curve.find(k => k.y === p.lebron);
+  const share = knot ? knot.x : interpolate(curve.map(k => ({ ...k, x: k.y, y: k.x })), p.lebron);
+  const salaryUsd = share * view.referenceCapUsd, differenceUsd = salaryUsd - p.salaryUsd;
+  const percentDifference = p.salaryUsd === 0 ? null : differenceUsd / p.salaryUsd * 100;
+  if (![share, salaryUsd, differenceUsd].every(Number.isFinite) || (percentDifference !== null && !Number.isFinite(percentDifference))) return unavailable('non-invertible');
+  // Support belongs to the full eligible league cohort, never the displayed filter.
+  const nearby = view.players.filter(q => q.salaryCapShare >= share - .02 && q.salaryCapShare <= share + .02);
+  const nNearby = nearby.length;
+  if (nNearby < 20 || nearby.filter(q => q.salaryCapShare < share).length < 5 || nearby.filter(q => q.salaryCapShare > share).length < 5 || new Set(nearby.map(q => q.salaryCapShare)).size < 5) return unavailable('sparse', nNearby);
+  return { status: 'available', share, salaryUsd, differenceUsd, percentDifference, nNearby };
+}
 /** Conservative completion gate: a season ending this calendar year opens July 1 UTC. */
 export function lastCompletedSeason(asOf: Date = new Date()): number {
   if (!(asOf instanceof Date) || !Number.isFinite(asOf.getTime())) fail('as-of date');
@@ -232,6 +257,7 @@ export const viewLabel = (v: View): string => v.window === 1 ? seasonLabel(v.end
 const decimalFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 const moneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const compactMoneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 });
+const referenceMoneyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
 const preciseSalaryFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 });
 const percentileFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 export const percentile = (v: number): string => {
@@ -544,7 +570,8 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('empty-copy', message.startsWith('Loading') ? 'The selected records are being checked.' : 'Retry or change the season. Saved records are available below.');
     get('retry').hidden = message.startsWith('Loading');
     txt('selection-name', 'Player comparison'); get('selection-name').hidden = true; txt('selection-context', ''); get('selection-context').hidden = true; get('selection').hidden = false; get('comparison').hidden = true;
-    for (const key of ['selected-unit', 'selected-direction', 'selected-salary-basis', 'selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-magnitude', 'selected-scale', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
+    get('salary-prototype').hidden = true;
+    for (const key of ['salary-reference', 'salary-difference', 'salary-basis', 'salary-exposure', 'salary-sensitivity', 'salary-unavailable', 'selected-unit', 'selected-direction', 'selected-salary-basis', 'selected-salary', 'selected-contribution', 'selected-reference', 'selected-gap', 'selected-percentile', 'selected-magnitude', 'selected-scale', 'selected-cohort', 'selected-observed', 'selected-details']) txt(key, '');
     for (const key of ['gap', 'contribution', 'reference', 'salary']) get(`selected-${key}`).closest('dd')!.removeAttribute('aria-label');
     txt('selection', 'Player details unavailable.'); txt('team-summary', ''); get('team-context').hidden = true; txt('team-scope', ''); txt('team-basis', ''); get('team-audit-panel').hidden = true; txt('team-audit', 'No team audit is loaded.');
     for (const field of ['summary', 'context', 'anchor', 'difference', 'range', 'support', 'precision']) txt(`million-${field}`, '');
@@ -668,6 +695,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('table-cost', units.value === 'share' ? 'Pay (% cap)' : active.window === 1 ? 'Pay (USD)' : 'Avg pay (end-cap USD)');
     txt('table-contribution', metricLabel(m, active)); txt('table-residual', `Gap (${m.toUpperCase()})`); txt('table-order', `${viewLabel(active)} · ${metricLabel(m, active)}. Gap = measured contribution minus salary reference; highest first.`);
     const p = active.players.find(p => p.id === selected);
+    get('salary-prototype').hidden = m !== 'lebron' || !p;
     txt('selection-context', p ? `${viewLabel(active)} · Regular season${active.window === 1 ? '' : 's'}` : ''); get('selection-context').hidden = !p;
     txt('selection-name', p ? `${p.id === exampleSelection ? 'Example: ' : ''}${p.name}` : 'Player comparison'); get('selection-name').hidden = !p; get('selection').hidden = !!p; get('comparison').hidden = !p;
     if (p) {
@@ -676,6 +704,29 @@ export function mountMoneyball(root: HTMLElement): void {
       for (const field of ['contribution', 'reference', 'gap'] as const) { txt(`selected-${field}`, copy.values[field]); get(`selected-${field}`).closest('dd')!.setAttribute('aria-label', copy[field]); }
       get('selected-salary').closest('dd')!.setAttribute('aria-label', `${copy.salary}. ${copy.salaryBasis}`);
       get('selected-observed').hidden = active.window === 1;
+      if (m === 'lebron') {
+        const match = lebronSalaryReference(active, p), available = match.status === 'available';
+        get('salary-result').hidden = !available;
+        get('salary-unavailable').hidden = available;
+        get<HTMLInputElement>('salary-connector').disabled = !available;
+        const example = !available ? active.players.find(q => (!team.value || q.teams.includes(team.value)) && lebronSalaryReference(active!, q).status === 'available') : undefined;
+        get('salary-example').hidden = !example;
+        get('salary-example').dataset.player = example?.id ?? '';
+        txt('salary-example', example ? `Try a supported comparison: ${example.name}` : '');
+        txt('salary-unavailable', match.status === 'outside-range' ? 'This impact is outside the league line’s fitted range. No comparison salary is shown; the player’s actual pay and contribution remain above.' : match.status === 'sparse' ? 'Too few nearby salaries support this intersection. No comparison salary is shown.' : 'This line has no stable, unique salary intersection. No comparison salary is shown.');
+        txt('salary-reference', ''); txt('salary-difference', ''); txt('salary-basis', ''); txt('salary-sensitivity', '');
+        if (available) {
+          const share = units.value === 'share', gap = share ? (match.share! - p.salaryCapShare) * 100 : match.differenceUsd!;
+          const sign = gap > 0 ? '+' : gap < 0 ? '−' : '';
+          txt('salary-reference', share ? `≈${decimal(match.share! * 100)}% of cap` : `≈${referenceMoneyFormatter.format(match.salaryUsd!)}`);
+          txt('salary-difference', `${sign}${share ? `${decimal(Math.abs(gap))} percentage points` : referenceMoneyFormatter.format(Math.abs(gap))}`);
+          txt('salary-basis', `${playerComparisonCopy(p, m, active, units.value as 'usd' | 'share').salaryBasis}. ${match.percentDifference === null ? 'Percentage change is undefined at zero reported pay.' : `${Math.round(Math.abs(match.percentDifference))}% ${match.percentDifference < 0 ? 'below' : match.percentDifference > 0 ? 'above' : 'different from'} reported pay.`}`);
+          const curve = active.models.lebron.curve, j = Math.max(1, curve.findIndex(k => k.x >= match.share!));
+          const shift = .1 * ((curve[j].x - curve[j - 1].x) / (curve[j].y - curve[j - 1].y)) * active.referenceCapUsd;
+          txt('salary-sensitivity', Number.isFinite(shift) ? `A hypothetical +0.1 LEBRON changes reference pay by about ${referenceMoneyFormatter.format(shift)} on this part of the line, using the same dollar basis as reported pay. This illustrates sensitivity, not uncertainty in the player's score.` : 'The salary response to a 0.1 LEBRON change cannot be represented safely.');
+        }
+        txt('salary-exposure', `About ${Math.round(p.minutes).toLocaleString('en-US')} minutes across ${p.observedSeasons.length} observed season${p.observedSeasons.length === 1 ? '' : 's'}.`);
+      }
     } else { txt('selection', 'Select a dot, choose an example or search for a player.'); txt('selected-magnitude', ''); txt('selected-scale', ''); }
     draw(); millionReadout();
   }
@@ -710,7 +761,7 @@ export function mountMoneyball(root: HTMLElement): void {
     const min = Math.min(0, ...values), max = Math.max(0, ...values), span = max - min || 1, ymin = min - span * .08, ymax = max + span * .08;
     const x = (v: number) => L + (v - xmin) / (xmax - xmin || 1) * (width - L - R), y = (v: number) => T + (ymax - v) / (ymax - ymin) * (height - T - B);
     chart.setAttribute('aria-label', `Salary and ${metricLabel(m, active)}`);
-    const children: SVGElement[] = [svg('desc', {}, 'Dots represent matched players. The solid line is the fixed salary reference. A selected player has a vertical connector to that same line. Use player search or the table for keyboard access.')];
+    const children: SVGElement[] = [svg('desc', {}, 'Dots represent matched players. The solid line is the fixed salary reference. A selected player has a vertical contribution gap. In LEBRON, an optional horizontal dashed connector ends at an open square on the same line when locally supported. It is a descriptive salary comparison, not recommended pay. Use search or the table for keyboard access.')];
     for (const v of niceTicks(ymin, ymax)) children.push(svg('line', { x1: L, x2: width - R, y1: y(v), y2: y(v), class: 'mb-grid' }), svg('text', { x: L - 7, y: y(v) + 4, 'text-anchor': 'end' }, String(Number(v.toPrecision(8)))));
     for (const tick of salaryTicks(xmin, xmax, active.referenceCapUsd, units.value, width < 500 ? 3 : 5)) children.push(svg('text', { x: x(tick.x), y: height - 13, 'text-anchor': tick.x === xmin ? 'start' : x(tick.x) > width - 40 ? 'end' : 'middle' }, tick.label));
     children.push(svg('line', { x1: L, x2: width - R, y1: y(0), y2: y(0), class: 'mb-zero' }));
@@ -726,6 +777,16 @@ export function mountMoneyball(root: HTMLElement): void {
     const chosen = shown.find(p => p.id === selected);
     if (chosen) {
       const reference = interpolate(curve, chosen.salaryCapShare);
+      if (m === 'lebron' && get<HTMLInputElement>('salary-connector').checked) {
+        const match = lebronSalaryReference(active, chosen);
+        if (match.status === 'available') {
+          const end = x(match.share!), right = end < width / 2;
+          const label = units.value === 'share' ? `${decimal(match.share! * 100)}% cap` : referenceMoneyFormatter.format(match.salaryUsd!);
+          children.push(svg('line', { x1: x(chosen.salaryCapShare), x2: end, y1: y(chosen.lebron), y2: y(chosen.lebron), class: 'mb-salary-link' }),
+            svg('rect', { x: end - 4, y: y(chosen.lebron) - 4, width: 8, height: 8, class: 'mb-salary-end' }),
+            svg('text', { x: end + (right ? 9 : -9), y: y(chosen.lebron) + 18, 'text-anchor': right ? 'start' : 'end', class: 'mb-salary-label' }, `Line: ${label}`));
+        }
+      }
       children.push(svg('line', { x1: x(chosen.salaryCapShare), x2: x(chosen.salaryCapShare), y1: y(chosen[m]), y2: y(reference), class: 'mb-gap' }),
         svg('circle', { cx: x(chosen.salaryCapShare), cy: y(reference), r: 3.5, class: 'mb-gap-base' }), playerDot(chosen));
     }
@@ -746,6 +807,7 @@ export function mountMoneyball(root: HTMLElement): void {
   get('retry').addEventListener('click', () => { void (index ? changeView() : loadIndex()); });
   season.addEventListener('change', changeView); windowSelect.addEventListener('change', changeView);
   metric.addEventListener('change', () => { closeSuggestions(); render(); });
+  get('salary-connector').addEventListener('change', draw);
   units.addEventListener('change', () => { closeSuggestions(); render(); });
   team.addEventListener('change', () => {
     closeSuggestions();
@@ -784,7 +846,7 @@ export function mountMoneyball(root: HTMLElement): void {
   records.addEventListener('toggle', () => { if (records.open) renderTable(); });
   const choose = (e: Event) => {
     const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-player]') : null;
-    if (target && commitPlayer(target.dataset.player ?? '') && (e.currentTarget === table || e.currentTarget === get('example-buttons'))) {
+    if (target && commitPlayer(target.dataset.player ?? '') && (e.currentTarget === table || e.currentTarget === get('example-buttons') || e.currentTarget === get('salary-example'))) {
       revealSelection();
     }
   };
@@ -809,9 +871,10 @@ export function mountMoneyball(root: HTMLElement): void {
   chart.addEventListener('pointerdown', event => { if (event.pointerType === 'touch') clearHover(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape') clearHover(); });
   chart.addEventListener('click', choose); table.addEventListener('click', choose); get('example-buttons').addEventListener('click', choose);
+  get('salary-example').addEventListener('click', choose);
   get('clear-search').addEventListener('click', () => { selected = ''; exampleSelection = ''; search.value = ''; closeSuggestions(); render(); search.focus({ preventScroll: true }); });
   get('find-player').addEventListener('click', () => { search.focus({ preventScroll: true }); search.scrollIntoView({ block: 'center', behavior: 'instant' }); });
-  get('reset').addEventListener('click', async () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = 'war'; units.value = 'usd'; search.value = ''; team.value = ''; selected = ''; exampleSelection = ''; await changeView(); showDefaultExample(); });
+  get('reset').addEventListener('click', async () => { if (!index) return; const v = index.views.find(v => v.id === index!.defaultView)!; season.value = String(v.endSeason); windowSelect.value = String(v.window); metric.value = 'war'; units.value = 'usd'; get<HTMLInputElement>('salary-connector').checked = true; search.value = ''; team.value = ''; selected = ''; exampleSelection = ''; await changeView(); showDefaultExample(); });
   let frame = 0;
   new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(draw); }).observe(chart.parentElement!);
   void loadIndex();

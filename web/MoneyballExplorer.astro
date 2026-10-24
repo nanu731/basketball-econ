@@ -87,6 +87,25 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
             <div><dt>Reported pay</dt><dd class="mb-pay-value"><span data-mb-selected-salary></span><p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p></dd></div>
           </dl>
           <p class="mb-small" data-mb-selected-observed hidden></p>
+          <section class="mb-salary-prototype" data-mb-salary-prototype hidden aria-labelledby="mb-salary-prototype-title">
+            <div class="mb-prototype-heading"><h4 id="mb-salary-prototype-title">Salary at this LEBRON level</h4><span class="mb-prototype-badge">Prototype</span></div>
+            <p class="mb-small">At the same LEBRON, where does the league line meet the salary axis? This compares impact while playing, not recommended pay.</p>
+            <label class="mb-connector-toggle"><input type="checkbox" data-mb-salary-connector checked /> Show horizontal line and reference square</label>
+            <p class="mb-small" data-mb-salary-unavailable hidden></p>
+            <button type="button" class="mb-salary-example" data-mb-salary-example hidden></button>
+            <dl class="mb-prototype-result" data-mb-salary-result>
+              <div><dt>Salary at the league line</dt><dd data-mb-salary-reference></dd></div>
+              <div><dt>Difference from reported pay</dt><dd data-mb-salary-difference></dd></div>
+            </dl>
+            <p class="mb-small" data-mb-salary-basis></p>
+            <p class="mb-small" data-mb-salary-exposure></p>
+            <details class="mb-prototype-limit"><summary>How to read this prototype</summary>
+              <p class="mb-small">The open square keeps the player's LEBRON fixed and meets the league line at a different salary. It translates the existing comparison into money; it adds no independent evidence of value.</p>
+              <p class="mb-small">Annual pay also covers playing time. The same LEBRON can produce the same reference salary for players with very different minutes. LEBRON reflects role and team context, not pure talent or a fully healthy season.</p>
+              <p class="mb-small">No salary uncertainty interval is calculated. Small changes in impact or the fitted line can change the dollar comparison substantially. Values are approximate; the shaded band still concerns contribution on the league line.</p>
+              <p class="mb-small" data-mb-salary-sensitivity></p>
+            </details>
+          </section>
           <details class="mb-comparison-details" data-mb-comparison-details><summary>More comparison details</summary>
             <dl class="mb-pay-rank"><div><dt><DefinitionHelp id="mb-value-percentile" label="League gap percentile" detailTarget="mb-percentile-calculation" detailLabel="Full calculation">Ranks this gap relative to eligible matched league gaps, not as a player grade. Tied gaps share a midpoint rank.</DefinitionHelp></dt><dd data-mb-selected-percentile></dd></div></dl>
             <p class="mb-gap-size"><DefinitionHelp id="mb-gap-size" label="Gap size" detailTarget="mb-gap-size-calculation" detailLabel="Full calculation">+2× is a positive gap twice the typical league distance; negative is below the line and zero is on it. The typical distance is the median of matched players' distances on either side of the line.</DefinitionHelp> <span data-mb-selected-magnitude></span><br /><span data-mb-selected-scale></span></p>
@@ -137,6 +156,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
       <p>WAR adds estimated wins above a readily available fill-in player over playing time. LEBRON measures impact per 100 possessions relative to league average, not points actually scored.</p>
       <p><a href="https://www.bball-index.com/lebron-introduction/" rel="noreferrer">Provider explanation of LEBRON and WAR</a>.</p>
       <p>Multi-season views average available matched seasons, not full-period totals. The selected player's observed-season count tells you how many seasons are included.</p>
+      <p>In the LEBRON view, the optional horizontal connector holds the player's impact rate fixed and meets the league line at a comparison salary. It does not estimate deserved pay, what similar players earn, or what the player would contribute over a full season.</p>
     </details>
     <details><summary>Methods and limitations</summary>
       <p>A baseline, a straight line and a modest curve are checked on held-out players, with simpler fits retained when results are close. Rookie, minimum and maximum contract rules constrain pay, so this is a descriptive comparison.</p>
@@ -286,6 +306,20 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .moneyball :global(.mb-selected) { fill: var(--accent); fill-opacity: 1; stroke: var(--green); stroke-width: 2; }
   .moneyball :global(.mb-gap) { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
   .moneyball :global(.mb-gap-base) { fill: var(--cream); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+  .moneyball :global(.mb-salary-link) { stroke: var(--green); stroke-width: 2; stroke-dasharray: 8 4; pointer-events: none; }
+  .moneyball :global(.mb-salary-end) { fill: var(--cream); stroke: var(--green); stroke-width: 2; pointer-events: none; }
+  .moneyball :global(.mb-salary-label) { font-size: 12px; paint-order: stroke; stroke: var(--cream); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+  .mb-salary-prototype { margin-top: var(--space-s); padding: var(--space-s); border-inline-start: 3px solid var(--green); background: var(--sand); }
+  .mb-prototype-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs); }
+  .mb-prototype-heading h4 { margin: 0; font-size: 1.125rem; }
+  .mb-prototype-badge { font: .75rem var(--font-numeric); border: 1px solid currentColor; padding: .15em .4em; }
+  .mb-salary-prototype .mb-small { margin-block: var(--space-2xs); max-width: 85ch; }
+  .mb-connector-toggle { display: flex; align-items: center; gap: var(--space-2xs); min-height: 44px; font-size: .875rem; cursor: pointer; }
+  .mb-connector-toggle input { width: 18px; height: 18px; accent-color: var(--green); }
+  .mb-salary-example { min-height: 44px; margin-block: var(--space-2xs); font-size: .875rem; text-align: start; }
+  .mb-prototype-result { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-l); margin: var(--space-2xs) 0; }
+  .mb-prototype-result dt { font-size: .875rem; }
+  .mb-prototype-result dd { margin: var(--space-3xs) 0 0; font: 600 1.25rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; }
   .mb-empty { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: start; padding: var(--space-m); }
   .mb-empty h3 { margin: 0 0 var(--space-xs); font-size: var(--type-h3); }
   .mb-empty p { max-width: 35ch; font-size: 1rem; margin: 0 0 var(--space-s); }
