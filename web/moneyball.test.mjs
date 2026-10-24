@@ -312,7 +312,7 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
   player.observedSeasons = [2023, 2025];
   const rate = playerComparisonCopy(player, 'lebron', multi);
   assert.equal(rate.percentile, '12.5th percentile of league gaps'); assert.equal(rate.reference, '-0.50 impact points/100 possessions'); assert.equal(rate.gap, '−3.00 impact points/100 possessions');
-  assert.equal(rate.contribution, '-3.50 impact points/100 possessions');
+  assert.equal(rate.contribution, '-3.50 impact points/100 possessions'); assert.equal(rate.unit, 'LEBRON · average impact points/100 possessions');
   assert.match(rate.cohort, /Among 4 eligible matched players/); assert.equal(rate.observed, 'Based on 2 of 3 seasons');
   assert.match(rate.salaryBasis, /Average annual 2024–25 cap-equivalent dollars/); assert.match(rate.details, /average annual ending-season cap-equivalent dollars/); const share = playerComparisonCopy(player, 'lebron', multi, 'share'); assert.equal(share.salary, '5.00%'); assert.equal(share.salaryBasis, 'Average share of each observed season’s cap'); assert.equal(share.gap, rate.gap); assert.match(rate.details, /2022–23, 2024–25/);
   assert.match(rate.details, /minutes; .* possessions/);

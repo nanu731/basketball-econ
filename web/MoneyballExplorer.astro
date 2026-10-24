@@ -38,7 +38,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
         <label>Team<select data-mb-team><option value="">All teams</option></select></label>
         <button type="button" data-mb-reset>Reset</button>
       </div>
-      <div class="mb-search-feedback"><p class="mb-small" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result></p><a data-mb-view-comparison href="#mb-player-comparison" hidden>View player comparison</a></div>
+      <div class="mb-search-feedback" id="mb-search-result" role="status" aria-live="polite"><p class="mb-small" data-mb-search-instructions></p><a data-mb-view-comparison href="#mb-player-comparison" hidden><span data-mb-search-result></span> → View comparison</a></div>
       <div class="mb-examples" data-mb-examples hidden><span>Try:</span><div data-mb-example-buttons></div></div>
       <details class="mb-filters" data-mb-context-controls>
         <summary>Time span and salary units</summary>
@@ -53,8 +53,13 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   </form>
   <figure aria-labelledby="mb-chart-title" aria-describedby="mb-chart-guide mb-caption">
     <h2 id="mb-chart-title" class="mb-sr">Explore player value</h2>
-    <p id="mb-chart-guide" class="mb-guide" data-mb-guide hidden={!data}><strong>Above line:</strong> more contribution than estimated at that pay. <strong>Below:</strong> less.</p>
+    <p id="mb-chart-guide" class="mb-guide" data-mb-guide hidden>Select a dot or search. <strong>Above line:</strong> more contribution than estimated at that pay. <strong>Below:</strong> less. <a class="mb-ranked-link" href="#mb-ranked-records">Ranked comparisons</a></p>
     <div class="mb-chart-tools"><p class="mb-small"><span data-mb-status role="status" aria-live="polite">{state}</span><span data-mb-period></span></p></div>
+    <section class="mb-team" data-mb-team-context hidden aria-label="Selected team scope and partial totals">
+      <p class="mb-small" data-mb-team-scope></p>
+      <dl class="mb-facts mb-team-facts" data-mb-team-summary></dl>
+      <p class="mb-small" data-mb-team-basis></p>
+    </section>
     <div class="mb-no-matches" data-mb-no-matches hidden><p>No players match this search.</p><button type="button" data-mb-clear-search>Clear search</button></div>
     <div class="mb-chart-layout">
       <div class="mb-plot">
@@ -66,7 +71,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
         <p class="mb-small mb-match-count" data-mb-count role="status" aria-live="polite"></p>
         <p class="mb-axis mb-x" data-mb-x-label>Salary · US dollars</p>
       </div>
-    <div class="mb-legend" aria-label="Chart legend"><button type="button" data-mb-find-player disabled>Find a player</button><a href="#mb-ranked-records">Ranked comparisons</a><span><i class="mb-dot-key" data-mb-peer-key aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span data-mb-selected-key hidden><i class="mb-selected-key" aria-hidden="true"></i>Selected player</span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">The fitted league line estimates contribution at each salary. A player's comparison is the vertical gap from that line.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Reference range">The shading describes uncertainty in the fitted league line while treating player scores as fixed. It is not uncertainty in an individual player's impact.</DefinitionHelp></span></div>
+    <div class="mb-legend" aria-label="Chart legend"><button type="button" data-mb-find-player disabled>Find a player</button><span><i class="mb-dot-key" data-mb-peer-key aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span data-mb-selected-key hidden><i class="mb-selected-key" aria-hidden="true"></i>Selected player</span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">The fitted league line estimates contribution at each salary. A player's comparison is the vertical gap from that line.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Reference range">The shading describes uncertainty in the fitted league line while treating player scores as fixed. It is not uncertainty in an individual player's impact.</DefinitionHelp></span></div>
       <section id="mb-player-comparison" class="mb-selection" aria-label="Selected player" data-mb-selection-panel tabindex="-1">
         <h3 data-mb-selection-name aria-live="polite" hidden>Player comparison</h3>
         <p class="mb-small" data-mb-selection-context hidden></p>
@@ -77,8 +82,9 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
           <dl class="mb-comparison">
             <div><dt>Measured contribution</dt><dd data-mb-selected-contribution></dd></div>
             <div><dt>Reference at this pay</dt><dd data-mb-selected-reference></dd></div>
-            <div><dt>Reported pay</dt><dd><span data-mb-selected-salary></span><small class="mb-pay-basis" data-mb-selected-salary-basis></small></dd></div>
+            <div><dt>Reported pay</dt><dd data-mb-selected-salary></dd></div>
           </dl>
+          <p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p>
           <p class="mb-small" data-mb-selected-observed hidden></p>
           <details class="mb-comparison-details" data-mb-comparison-details><summary>More comparison details</summary>
             <dl class="mb-pay-rank"><div><dt><DefinitionHelp id="mb-value-percentile" label="Gap percentile" detailTarget="mb-percentile-calculation" detailLabel="Full calculation">Ranks this gap relative to eligible matched league gaps, not as a player grade. Tied gaps share a midpoint rank.</DefinitionHelp></dt><dd data-mb-selected-percentile></dd></div></dl>
@@ -94,11 +100,10 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   <p class="mb-small mb-note" data-mb-coverage-summary></p>
     </div>
 
-    <figcaption id="mb-caption" data-mb-caption hidden>Select a dot or search for a player. League reference stays fixed under filters. Tap an underlined term for help; tap outside or press Escape to close.</figcaption>
+    <figcaption id="mb-caption" data-mb-caption hidden>League reference stays fixed under filters. Tap an underlined term for help; tap outside or press Escape to close.</figcaption>
   </figure>
-  <p class="mb-small mb-team" data-mb-team-summary hidden>Team totals count only matched salary and WAR that can be assigned to that team. A traded player's full record may appear among the dots while remaining excluded from the team total.</p>
   <details data-mb-live-table hidden class="mb-records">
-    <summary id="mb-ranked-records" tabindex="-1" data-reference-target>Player records</summary>
+    <summary id="mb-ranked-records" data-reference-target>Player records</summary>
     <p class="mb-small" data-mb-table-order>Ordered by the active contribution gap, highest first.</p>
     <p id="mb-scroll-help" class="mb-small">Scroll across for more columns and down for more players. <a href="#mb-about-title">Skip player rows to About</a>.</p>
     <div class="mb-table-scroll" role="region" aria-label="Player records, scroll horizontally and vertically" aria-describedby="mb-scroll-help" tabindex="0">
@@ -139,11 +144,17 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
       <details class="mb-technical" data-mb-technical><summary>Technical records: current view and saved default</summary>
         <section id="mb-technical-records" tabindex="-1" data-reference-target>
           <h4>Current interactive view</h4>
-          <dl class="mb-million-evidence"><dt>View and model</dt><dd data-mb-view-evidence>No interactive view loaded.</dd><dt>Method</dt><dd data-mb-view-method></dd><dt>Validation</dt><dd><ul class="mb-validation-clauses" data-mb-view-validation></ul></dd><dt>Interval</dt><dd data-mb-view-interval></dd></dl>
-          <p class="mb-small" data-mb-model></p>
-          <h5>Current coverage</h5><p class="mb-small mb-coverage" data-mb-coverage>Interactive coverage appears after a view loads.</p>
-          <section data-mb-team-audit-panel hidden><h5>Current team attribution audit</h5><p class="mb-small" data-mb-team-audit>No team audit loaded.</p></section>
-          <h5>Current source retrieval dates and versions</h5><ul data-mb-view-source-versions></ul>
+          <dl class="mb-facts"><dt>View</dt><dd data-mb-view-context>No interactive view loaded.</dd><dt>Salary-reference model</dt><dd data-mb-view-model-name></dd><dt>Reference-range meaning</dt><dd data-mb-model></dd></dl>
+          <h5>Current coverage: separate populations</h5>
+          <dl class="mb-facts" data-mb-coverage-facts></dl>
+          <p class="mb-small">Player counts, player-season counts and known-dollar totals describe different populations. Read each population separately; these rows are not consecutive steps in one exclusion total.</p>
+          <h5>Reported exclusion counts</h5><dl class="mb-facts" data-mb-coverage-exclusions></dl>
+          <details><summary>Exact current method, validation and source records</summary>
+            <dl class="mb-million-evidence"><dt>View, model and version</dt><dd data-mb-view-evidence>No interactive view loaded.</dd><dt>Method</dt><dd data-mb-view-method></dd><dt>Validation</dt><dd><ul class="mb-validation-clauses" data-mb-view-validation></ul></dd><dt>Interval</dt><dd data-mb-view-interval></dd></dl>
+            <p class="mb-small mb-coverage" data-mb-coverage>Interactive coverage appears after a view loads.</p>
+            <section data-mb-team-audit-panel hidden><h5>Current team attribution audit</h5><p class="mb-small" data-mb-team-audit>No team audit loaded.</p></section>
+            <h5>Current source retrieval dates and versions</h5><ul data-mb-view-source-versions></ul>
+          </details>
           <h4>Representation and fitting</h4>
 <p>The analysis fits a league-wide relationship between matched compensation and each contribution measure. The above / below reference value is the vertical gap between a player's dot and that curve. It stays fixed under team or player filters.</p><p>For multi-season windows, salary and both contribution measures cover exactly the same observed matched active seasons. A player can have fewer observed seasons than the selected window. Read that count beside the player before comparing averages. WAR and salary cap share average the observed matched active seasons; LEBRON uses the provider's possession counts as weights. Dollar views multiply average cap share by the ending-season salary cap. Team annual averages instead divide attributable player-season totals by the full selected window length.</p>{data && <><p>{data.definitions.eligibility}</p>{data.views.map(v => <details><summary>Saved {viewLabel(v)} model and validation</summary>{(['lebron', 'war'] as const).map(m => <dl class="mb-million-evidence"><dt>{m.toUpperCase()} model</dt><dd>{v.models[m].name}</dd><dt>Method</dt><dd>{v.models[m].method}</dd><dt>Validation</dt><dd><ul class="mb-validation-clauses" data-mb-saved-validation={m}>{v.models[m].validation.split(' | ').map(clause => <li>{clause}</li>)}</ul></dd></dl>)}</details>)}</>}
 <h4>Salary and team attribution</h4>
@@ -225,7 +236,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-search-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2xs) var(--space-xs); font-size: var(--type-small); }
   .moneyball .mb-search-feedback p { margin: 0; }
   .mb-search-feedback p:empty { display: none; }
-  .mb-search-feedback a { min-height: 44px; display: inline-flex; align-items: center; text-underline-offset: .2em; }
+  .mb-search-feedback a { min-height: 44px; display: block; flex: 1 1 100%; line-height: 1.5; text-underline-offset: .2em; }
   .suggestion-menu { position: absolute; z-index: 10; inset-block-start: 100%; inset-inline: 0; max-height: 18rem; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; border: var(--mb-rule); border-top: 0; background: var(--cream); }
   .suggestion-menu :global(.suggestion-option), .suggestion-menu :global(.no-results) { margin: 0; padding: var(--space-xs) var(--space-s); }
   .suggestion-menu :global(.suggestion-option) { min-height: 44px; box-sizing: border-box; border-top: 1px solid var(--sand); cursor: pointer; touch-action: manipulation; }
@@ -288,7 +299,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-answer dt { font-size: var(--type-small); }
   .mb-answer dd small { font: 1rem/1.35 var(--font-body); }
   .mb-pay-basis { display: block; font: var(--type-small)/1.35 var(--font-body); }
-  .mb-controls-return, #mb-scroll-help a, .mb-legend > a { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--type-small); }
+  .mb-controls-return, #mb-scroll-help a, .mb-ranked-link { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--type-small); }
   .mb-answer dd { margin: var(--space-2xs) 0 0; font: 600 1.5rem/1.25 var(--font-numeric); }
   .mb-selection > p { font-size: 1rem; margin: 0; }
   .mb-selection > .mb-small { font-size: var(--type-small); line-height: 1.35; margin: var(--space-2xs) 0 0; }
@@ -298,7 +309,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-pay-rank dt { font-size: var(--type-small); }
   .mb-pay-rank dd { margin: var(--space-2xs) 0 0; font: 1rem/1.4 var(--font-numeric); }
   .mb-comparison-details > summary { font: 1rem/1.4 var(--font-body); }
-  .mb-comparison dt { min-height: 44px; display: flex; align-items: center; font-size: var(--type-small); line-height: 1.25; }
+  .mb-comparison dt { min-height: 28px; display: flex; align-items: center; font-size: var(--type-small); line-height: 1.25; }
   .mb-comparison dd { margin: var(--space-3xs) 0 0; font-family: var(--font-numeric); font-size: 1rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
   .mb-gap-size [data-mb-selected-magnitude] { font: 600 1.125rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; }
   /* Result paragraphs must not inherit the article's long prose margins. */
@@ -325,6 +336,11 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-band-key { width: 24px; height: 12px; background: var(--sand); border: 1px solid var(--green); }
   .moneyball .mb-guide { max-width: 75ch; margin: var(--space-2xs) 0; font-size: 1rem; line-height: 1.45; }
   figcaption { max-width: 90ch; }
+  .mb-facts { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: .4rem var(--space-s); margin-block: var(--space-xs); font-size: var(--type-small); line-height: 1.4; }
+  .mb-facts :global(dt) { font-weight: 600; }
+  .mb-facts :global(dd) { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .moneyball .mb-team p { margin: var(--space-2xs) 0; }
+  .mb-team-facts { margin-block: var(--space-2xs); }
   .mb-coverage, .mb-team { border-top: var(--mb-rule); padding-top: var(--space-xs); }
   .moneyball details { border-top: var(--mb-rule); margin-block: var(--space-s); }
   .moneyball summary { cursor: pointer; min-height: 48px; padding-block: var(--space-xs); font-family: var(--font-display); font-size: 1.25rem; }

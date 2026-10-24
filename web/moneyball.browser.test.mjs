@@ -130,10 +130,10 @@ async function mountedScenario() {
       const magnitude = Math.abs(ratio), formatted = magnitude !== 0 && (magnitude < .005 || magnitude >= 1e6) ? String(Number(magnitude.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(magnitude);
       const ending = `${view.endSeason - 1}–${String(view.endSeason % 100).padStart(2, '0')}`;
       check(!q('selection-context').hidden && q('selection-context').textContent.includes(ending) && q('period').textContent.includes(ending) && q('selection-context').textContent.includes('Regular season'), 'Selected result or chart lacks its active season basis');
-      if (view.window > 1) check(q('selection-context').textContent.includes(`${view.window} seasons`) && q('selection-context').textContent.includes('averages over available matched seasons'), 'Selected multi-season basis is incomplete');
+      if (view.window > 1) check(q('selection-context').textContent.includes(`${view.window} seasons`) && q('selected-unit').textContent.includes(metric === 'war' ? 'per observed season' : 'average impact') && q('selected-observed').textContent.includes(`of ${view.window} seasons`), 'Selected multi-season basis is incomplete');
       check(q('selected-magnitude').textContent.startsWith(`${ratio > 0 ? '+' : ratio < 0 ? '−' : ''}${formatted} × typical league gap`), 'Selected magnitude differs from the full league cohort');
       check(q('search-result').textContent.includes(chosen.name) && q('search-result').textContent.includes(q('selected-gap').closest('dd').getAttribute('aria-label')) && q('search-result').textContent.includes('vs salary reference'), 'Search feedback lacks the selected native gap');
-      check(q('selected-unit').textContent.includes(metric.toUpperCase()) && q('selected-unit').textContent.includes(metric === 'war' ? 'includes playing time' : 'impact when playing') && !/[a-z]/i.test(q('selected-contribution').textContent), 'Shared result unit is missing or values repeat it');
+      check(q('selected-unit').textContent.includes(metric.toUpperCase()) && q('selected-unit').textContent.includes(metric === 'war' ? 'includes playing time' : 'impact points/100 possessions') && !/[a-z]/i.test(q('selected-contribution').textContent), 'Shared result unit is missing or values repeat it');
       check(q('table-contribution')?.textContent.includes(metric.toUpperCase()), 'Active live-table contribution metric is missing or stale');
       const scaleText = scale < .005 || scale >= 1e6 ? String(Number(scale.toPrecision(3))) : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(scale);
       check(q('selected-scale').textContent.includes(`about ${scaleText}`) && q('selected-scale').textContent.includes('median distance') && !q('selected-scale').textContent.includes('matched players') && q('selected-cohort').textContent.includes(`${view.players.length} eligible matched players`), 'Rounded native scale or single full cohort context missing');
@@ -141,7 +141,10 @@ async function mountedScenario() {
     };
     choose(player); connector();
     check(!q('comparison-details').open && q('selected-percentile').closest('details') === q('comparison-details') && !q('selected-gap').closest('details'), 'Primary gap or secondary comparison hierarchy is wrong');
+    check(q('view-comparison').contains(q('search-result')) && q('search-instructions').textContent === '' && q('view-comparison').getBoundingClientRect().height >= 44, 'Selected feedback is not one accessible comparison action');
     check(!q('view-comparison').hidden && q('view-comparison').getAttribute('href') === '#mb-player-comparison', 'Search lacks a route to its selected comparison');
+    check(q('guide').textContent.startsWith('Select a dot or search.') && q('guide').getBoundingClientRect().top < q('chart').getBoundingClientRect().top && root.querySelector('.mb-ranked-link').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Invitation or ranked route is below the plot');
+    check(!q('selected-salary-basis').closest('dd') && q('selected-salary-basis').getBoundingClientRect().width > q('comparison').getBoundingClientRect().width * .9, 'Salary basis is trapped in a narrow value column');
     const legend = q('chart').closest('.mb-chart-layout').querySelector('.mb-legend');
     check(legend.getBoundingClientRect().top < q('selection-panel').getBoundingClientRect().top && legend.contains(q('find-player')), 'Legend/search alternative is not between plot and facts');
     q('comparison-details').open = true; gapSize(player, 'war', one); check(q('million-summary').textContent === defaultAssociation, 'Player search changed league association');
@@ -185,7 +188,10 @@ async function mountedScenario() {
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
     check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank}th percentile of league gaps`, 'Team filter changed cohort reference/rank');
-    check(q('team-summary').textContent.includes('full matched record across teams') && q('team-summary').textContent.includes('do not change with player search'), 'Team population or search scope is missing');
+    check(q('team-scope').textContent.includes('full matched player records across teams') && q('team-basis').textContent.includes('fixed during player search') && q('team-context').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Team population or search scope is missing near the chart controls');
+    const teamTotal = one.teams.find(t => t.team === 'NYK'), teamValues = [...q('team-summary').querySelectorAll('dd')].map(el => el.textContent);
+    check(teamValues[0] === `${teamTotal.attributablePlayerSeasons} of ${teamTotal.eligiblePlayerSeasons} player-seasons` && teamValues[1] === new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(teamTotal.salaryUsd), 'Structured team totals differ from saved assigned sample');
+    const fixedTotals = q('team-summary').textContent; q('search').value = team[0].name.slice(0, 3); q('search').dispatchEvent(new Event('input', { bubbles: true })); check(q('team-summary').textContent === fixedTotals, 'Draft player search changed fixed team totals'); choose(team[0]);
     check(!contextPanel.open && q('team').selectedOptions[0].textContent === 'New York Knicks', 'Visible team context stayed stale');
     check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
     check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
@@ -195,6 +201,7 @@ async function mountedScenario() {
     check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); association(one, 'lebron');
     contextPanel.querySelector('summary').click(); check(contextPanel.open && q('window').getBoundingClientRect().height >= 44, 'Advanced span control is unusable');
     change('window', '3');
+    check(['coverage-facts', 'coverage-exclusions', 'view-model-name', 'view-context', 'team-scope', 'team-basis'].every(k => q(k).textContent === '') && q('team-context').hidden, 'Loading retained current population or team facts');
     check(['selected-unit', 'selected-salary-basis', 'selected-direction'].every(k => q(k).textContent === '') && !q('selected-gap').closest('dd').hasAttribute('aria-label'), 'Loading retained result units or an accessibility value');
     check(fields.every(f => q(`million-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '' && q('selection-context').hidden && q('selection-context').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
@@ -204,7 +211,7 @@ async function mountedScenario() {
     association(multi, 'lebron'); check(q('million-context').textContent.includes('cap-equivalent') && q('million-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
     check(q('season-label').textContent === 'Season ending' && q('selected-salary-basis').textContent.includes('Average annual') && q('selected-salary-basis').textContent.includes('cap-equivalent dollars'), 'Multi-year salary or season-ending basis is ambiguous');
     change('units', 'share'); check(q('selected-salary').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(multiPlayer.salaryCapShare * 100) + '%' && q('selected-salary-basis').textContent.includes('each observed season'), 'Selected pay ignored cap-share units'); change('units', 'usd');
-    readableMetric(); check(q('period').textContent.includes('3 seasons') && q('window-note').textContent.includes('available matched seasons') && !q('window-note').closest('details'), 'Average context was hidden');
+    readableMetric(); check(q('period').textContent.includes('3 seasons') && q('window-note').hidden && q('window-note').textContent === '' && q('selected-unit').textContent.includes('average impact'), 'Average context was hidden');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); hover(dots()[0]); change('window', '5'); check(!hoveredName(), 'Loading retained hover');
     await wait(() => q('search').disabled && /failed validation/.test(q('status').textContent), 'Corrupt view was not rejected');
     check(!hoveredName(), 'Failed view retained hover');
@@ -234,6 +241,7 @@ async function mountedScenario() {
     change('season', String(earliest.endSeason)); await wait(() => !q('search').disabled && q('window').value === '1', 'Unsupported time span did not fall back safely');
     check(q('status').textContent.includes('5-season span is unavailable') && q('status').textContent.includes('showing 1 season'), 'Automatic span fallback was silent');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Final reset failed');
+    check(document.getElementById('mb-ranked-records').tabIndex >= 0, 'Player records summary is missing its native sequential Tab stop');
     const rankedLink = root.querySelector('a[href="#mb-ranked-records"]'); q('live-table').open = false; rankedLink.click(); await wait(() => q('live-table').open && document.activeElement === document.getElementById('mb-ranked-records'), 'Ranked comparisons link did not open/focus records');
     const bypass = root.querySelector('#mb-scroll-help a'); bypass.click(); await wait(() => document.activeElement === document.getElementById('mb-about-title'), 'Table bypass did not focus About');
     root.querySelector('.mb-controls-return').click(); await wait(() => document.activeElement === document.getElementById('mb-controls'), 'Controls return did not focus controls');
@@ -241,6 +249,10 @@ async function mountedScenario() {
     const methodPanels = [...root.querySelectorAll('.mb-methods > details')];
     check(methodPanels.length === 3 && methodPanels.map(panel => panel.querySelector('summary').textContent).join('|') === 'Reading the chart|Methods and limitations|Sources and code', 'Methods/source destinations were not consolidated');
     check(q('view-sources').querySelectorAll('a').length === 3 && !/retrieved|[a-f0-9]{64}/.test(q('view-sources').textContent) && q('view-source-versions').textContent.includes('retrieved'), 'Source attribution/provenance layers are wrong');
+    const coverageValues = [...q('coverage-facts').querySelectorAll('dd')].map(el => el.textContent);
+    check(coverageValues.slice(0, 5).join('|') === [one.coverage.eligible, one.coverage.matched, one.coverage.sourcePlayerSeasons, one.coverage.eligiblePlayerSeasons, one.coverage.unknownSalaryPlayerSeasons].join('|'), 'Labeled coverage populations differ from the saved fields');
+    check([...q('coverage-exclusions').querySelectorAll('dd')].map(el => el.textContent).join('|') === one.coverage.excluded.map(e => e.count).join('|'), 'Reported exclusion counts changed');
+    check(q('view-model-name').textContent === one.models.war.name && q('view-method').closest('details') !== q('view-model-name').closest('details'), 'Human model context and exact records are not separated');
     check(q('view-method').textContent === one.models.war.method && [...q('view-validation').children].map(li => li.textContent).join(' | ') === one.models.war.validation, 'Labeled technical method/validation differs from the export');
     for (const list of root.querySelectorAll('[data-mb-saved-validation]')) check([...list.children].map(li => li.textContent).join(' | ') === one.models[list.getAttribute('data-mb-saved-validation')].validation, 'Saved validation clauses differ from the export');
     check(getComputedStyle(q('snapshot').querySelector('.mb-table-scroll')).maxHeight === 'none', 'Saved no-JS record access was bounded');
@@ -260,6 +272,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   const build = await realpath(resolve(process.env.MONEYBALL_BUILD_DIR));
   const page = '/projects/moneyball-basketball-edition/';
   const html = await readFile(join(build, page, 'index.html'), 'utf8');
+  assert.ok(html.match(/<p\b[^>]*data-mb-guide[^>]*>/)?.[0].includes('hidden'), 'No-JS guide must not link to unavailable interactive records');
   assert.match(html, /data-mb-million-summary[^>]*>In [^<]+\$1 million more[^<]+fitted league line/, 'Default association must be server-rendered for no-JS');
   const savedReturns = html.match(/<a\b[^>]*data-mb-return[^>]*>Back to saved records<\/a>/g) ?? [];
   assert.equal(savedReturns.length, 2, 'Both no-JS return links must name saved records');
