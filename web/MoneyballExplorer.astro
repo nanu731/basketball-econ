@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import DefinitionHelp from './DefinitionHelp.astro';
-import { INDEX_URL, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, parseJSONBytes, validateIndex, validateViewBundle, viewLabel, metricLabel, salaryCoverage, decimal, money, percentile, gapMultiple, gapScaleCopy, sortGapRows, millionSummary, readableReason, teamName, type Bundle } from './moneyball';
+import { INDEX_URL, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, parseJSONBytes, validateIndex, validateViewBundle, viewLabel, viewSourceLinks, metricLabel, salaryCoverage, decimal, money, percentile, gapMultiple, gapScaleCopy, sortGapRows, millionSummary, readableReason, teamName, type Bundle } from './moneyball';
 let data: Bundle | null = null;
 let state = 'Reviewed salary and contribution records are not available. No player findings are shown.';
 try {
@@ -20,7 +20,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
 
 <section id="mb-explorer" tabindex="-1" data-reference-target class="moneyball figure" aria-label="NBA salary and contribution explorer" data-moneyball>
   <a class="mb-skip" data-mb-skip href="#mb-explorer">Skip to basketball explorer</a>
-  <form id="mb-controls" tabindex="-1" data-reference-target aria-label="Explore player value">
+  <form id="mb-controls" tabindex="-1" data-reference-target aria-label="Compare contribution and pay">
     <fieldset disabled data-mb-controls class="mb-controls">
       <legend class="mb-sr">Player comparison controls</legend>
       <div class="mb-primary">
@@ -54,7 +54,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     </fieldset>
   </form>
   <figure aria-labelledby="mb-chart-title" aria-describedby="mb-chart-guide mb-caption">
-    <h2 id="mb-chart-title" class="mb-sr">Explore player value</h2>
+    <h2 id="mb-chart-title" class="mb-sr">Compare contribution and pay</h2>
     <p id="mb-chart-guide" class="mb-guide" data-mb-guide hidden>Select a dot or search. <strong>Above the line:</strong> more than estimated at this pay; <strong>below:</strong> less. <a class="mb-ranked-link" href="#mb-ranked-records">Ranked comparisons</a></p>
     <div class="mb-chart-tools"><p class="mb-small"><span data-mb-status role="status" aria-live="polite">{state}</span><span data-mb-period></span></p></div>
     <section class="mb-team" data-mb-team-context hidden aria-label="Selected team scope and partial totals">
@@ -73,7 +73,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
         <p class="mb-small mb-match-count" data-mb-count role="status" aria-live="polite"></p>
         <p class="mb-axis mb-x" data-mb-x-label>Salary · US dollars</p>
       </div>
-    <div class="mb-legend" aria-label="Chart legend"><button type="button" data-mb-find-player disabled>Find a player</button><span><i class="mb-dot-key" data-mb-peer-key aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span data-mb-selected-key hidden><i class="mb-selected-key" aria-hidden="true"></i>Selected player</span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">The fitted league line estimates contribution at each salary. A player's comparison is the vertical gap from that line.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Reference range">The shading describes uncertainty in the fitted league line while treating player scores as fixed. It is not uncertainty in an individual player's impact.</DefinitionHelp></span></div>
+    <div class="mb-legend" aria-label="Chart legend"><button type="button" data-mb-find-player disabled>Find a player</button><span><i class="mb-dot-key" data-mb-peer-key aria-hidden="true"></i><DefinitionHelp id="mb-matched" label="Matched player">One player whose salary and contribution records cover the same seasons and pass the inclusion rules. Missing or ineligible records stay out of the comparison.</DefinitionHelp></span><span data-mb-selected-key hidden><i class="mb-selected-key" aria-hidden="true"></i>Selected player</span><span><i class="mb-line-key" aria-hidden="true"></i><DefinitionHelp id="mb-reference" label="Salary reference">The fitted league line estimates contribution at each salary. A player's comparison is the vertical gap from that line.</DefinitionHelp></span><span><i class="mb-band-key" aria-hidden="true"></i><DefinitionHelp id="mb-band" label="Reference range">The shading describes uncertainty in the fitted league line while treating player scores as fixed. It is not uncertainty in an individual player's impact.</DefinitionHelp></span><span data-mb-salary-key hidden><i class="mb-salary-key" aria-hidden="true"></i>Horizontal salary comparison</span></div>
       <section id="mb-player-comparison" class="mb-selection" aria-label="Selected player" data-mb-selection-panel tabindex="-1">
         <h3 data-mb-selection-name aria-live="polite" hidden>Player comparison</h3>
         <p class="mb-small" data-mb-selection-context hidden></p>
@@ -87,6 +87,26 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
             <div><dt>Reported pay</dt><dd class="mb-pay-value"><span data-mb-selected-salary></span><p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p></dd></div>
           </dl>
           <p class="mb-small" data-mb-selected-observed hidden></p>
+          <section class="mb-salary-prototype" data-mb-salary-prototype hidden aria-labelledby="mb-salary-prototype-title">
+            <div class="mb-prototype-heading"><h4 id="mb-salary-prototype-title">Salary at this LEBRON level</h4><span class="mb-prototype-badge">Prototype</span></div>
+            <p class="mb-small">The square marks where this player's LEBRON meets the league line. Its salary is a comparison of impact while playing, not recommended pay.</p>
+            <p class="mb-small" data-mb-salary-unavailable hidden></p>
+            <button type="button" class="mb-salary-example" data-mb-salary-example hidden></button>
+            <dl class="mb-prototype-result" data-mb-salary-result>
+              <div><dt>Salary at the league line</dt><dd data-mb-salary-reference></dd></div>
+              <div><dt>Difference from reported pay</dt><dd data-mb-salary-difference></dd></div>
+            </dl>
+            <p class="mb-small" data-mb-salary-basis></p>
+            <p class="mb-small" data-mb-salary-exposure></p>
+            <p class="mb-small mb-prototype-caution">Not total-season value. No salary uncertainty range is calculated.</p>
+            <label class="mb-connector-toggle"><input type="checkbox" data-mb-salary-connector checked /> Show horizontal line and reference square</label>
+            <details class="mb-prototype-limit"><summary>How to read this prototype</summary>
+              <p class="mb-small">The open square keeps the player's LEBRON fixed and meets the league line at a different salary. It translates the existing comparison into money; it adds no independent evidence of value.</p>
+              <p class="mb-small">Annual pay also covers playing time. The same LEBRON can produce the same reference salary for players with very different minutes. LEBRON reflects role and team context, not pure talent or a fully healthy season.</p>
+              <p class="mb-small">No salary uncertainty interval is calculated. Small changes in impact or the fitted line can change the dollar comparison substantially. Values are approximate; the shaded band still concerns contribution on the league line.</p>
+              <p class="mb-small" data-mb-salary-sensitivity></p>
+            </details>
+          </section>
           <details class="mb-comparison-details" data-mb-comparison-details><summary>More comparison details</summary>
             <dl class="mb-pay-rank"><div><dt><DefinitionHelp id="mb-value-percentile" label="League gap percentile" detailTarget="mb-percentile-calculation" detailLabel="Full calculation">Ranks this gap relative to eligible matched league gaps, not as a player grade. Tied gaps share a midpoint rank.</DefinitionHelp></dt><dd data-mb-selected-percentile></dd></div></dl>
             <p class="mb-gap-size"><DefinitionHelp id="mb-gap-size" label="Gap size" detailTarget="mb-gap-size-calculation" detailLabel="Full calculation">+2× is a positive gap twice the typical league distance; negative is below the line and zero is on it. The typical distance is the median of matched players' distances on either side of the line.</DefinitionHelp> <span data-mb-selected-magnitude></span><br /><span data-mb-selected-scale></span></p>
@@ -137,6 +157,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
       <p>WAR adds estimated wins above a readily available fill-in player over playing time. LEBRON measures impact per 100 possessions relative to league average, not points actually scored.</p>
       <p><a href="https://www.bball-index.com/lebron-introduction/" rel="noreferrer">Provider explanation of LEBRON and WAR</a>.</p>
       <p>Multi-season views average available matched seasons, not full-period totals. The selected player's observed-season count tells you how many seasons are included.</p>
+      <p>In the LEBRON view, the optional horizontal connector holds the player's impact rate fixed and meets the league line at a comparison salary. It does not estimate deserved pay, what similar players earn, or what the player would contribute over a full season.</p>
     </details>
     <details><summary>Methods and limitations</summary>
       <p>A baseline, a straight line and a modest curve are checked on held-out players, with simpler fits retained when results are close. Rookie, minimum and maximum contract rules constrain pay, so this is a descriptive comparison.</p>
@@ -194,7 +215,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     </details>
     <details><summary>Sources</summary>
       <p class="mb-small" data-mb-source-context>Saved {data ? viewLabel(data.views[0]) : 'default'} sources.</p>
-      <ul data-mb-view-sources>{data?.sources.map(source => <li><a href={source.url} rel="noreferrer">{source.label}</a></li>)}</ul>
+      <ul data-mb-view-sources>{data && viewSourceLinks(data, data.views[0]).map(source => <li><a href={source.url} rel="noreferrer">{source.label}</a></li>)}</ul>
       <p>Retrieval dates, versions and reuse notes are in the technical records.</p>
     </details>
     <a class="mb-back-comparison" data-mb-return="controls" href="#mb-snapshot-title">Back to saved records</a>
@@ -286,6 +307,21 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .moneyball :global(.mb-selected) { fill: var(--accent); fill-opacity: 1; stroke: var(--green); stroke-width: 2; }
   .moneyball :global(.mb-gap) { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
   .moneyball :global(.mb-gap-base) { fill: var(--cream); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+  .moneyball :global(.mb-salary-link) { stroke: var(--green); stroke-width: 2; stroke-dasharray: 8 4; pointer-events: none; }
+  .moneyball :global(.mb-salary-end) { fill: var(--cream); stroke: var(--green); stroke-width: 2; pointer-events: none; }
+  .moneyball :global(.mb-salary-label) { font-size: 12px; paint-order: stroke; stroke: var(--cream); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+  .mb-salary-prototype { margin-top: var(--space-s); padding: var(--space-s); background: var(--sand); }
+  .mb-prototype-caution { font-weight: 600; }
+  .mb-prototype-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs); }
+  .mb-prototype-heading h4 { margin: 0; font-size: 1.125rem; }
+  .mb-prototype-badge { font: .75rem var(--font-numeric); border: 1px solid currentColor; padding: .15em .4em; }
+  .mb-salary-prototype .mb-small { margin-block: var(--space-2xs); max-width: 85ch; }
+  .mb-connector-toggle { display: flex; align-items: center; gap: var(--space-2xs); min-height: 44px; font-size: .875rem; cursor: pointer; }
+  .mb-connector-toggle input { width: 18px; height: 18px; accent-color: var(--green); }
+  .mb-salary-example { min-height: 44px; margin-block: var(--space-2xs); font-size: .875rem; text-align: start; }
+  .mb-prototype-result { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-l); margin: var(--space-2xs) 0; }
+  .mb-prototype-result dt { font-size: .875rem; }
+  .mb-prototype-result dd { margin: var(--space-3xs) 0 0; font: 600 1.25rem/1.4 var(--font-numeric); font-variant-numeric: tabular-nums; }
   .mb-empty { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: start; padding: var(--space-m); }
   .mb-empty h3 { margin: 0 0 var(--space-xs); font-size: var(--type-h3); }
   .mb-empty p { max-width: 35ch; font-size: 1rem; margin: 0 0 var(--space-s); }
@@ -324,6 +360,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-legend > span { display: flex; align-items: center; gap: var(--space-2xs); }
   .mb-dot-key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
   .mb-dot-key[data-hollow=true] { background: var(--cream); border: 1px solid var(--green); }
+  .mb-salary-key { width: 10px; height: 10px; border: 2px solid var(--green); background: var(--cream); }
   .mb-selected-key { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid var(--green); }
   .mb-chart-tools { display: flex; justify-content: space-between; align-items: center; gap: var(--space-s); margin-block: var(--space-2xs); }
   .moneyball .mb-chart-tools p { margin: 0; max-width: 65ch; }
