@@ -42,7 +42,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
       <p class="mb-sr" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result></p>
       <div class="mb-secondary mb-salary-controls">
         <label>Salary units<select data-mb-units aria-describedby="mb-salary-help"><option value="usd">US dollars</option><option value="share">% of salary cap</option></select></label>
-        <p class="mb-small" id="mb-salary-help"><DefinitionHelp id="mb-cap" label="Salary cap / share">Cap share divides reported pay by that season's league salary cap. Multi-season dollars use the ending season's cap.</DefinitionHelp></p>
+        <p class="mb-small" id="mb-salary-help"><DefinitionHelp id="mb-cap" label="Salary cap / share">Player salary divided by that season's NBA salary cap, shown as a percentage. The denominator is the league cap, not team payroll, the luxury-tax threshold or either apron. Multi-season dollars use the ending season's cap.</DefinitionHelp></p>
       </div>
       <details class="mb-filters" data-mb-context-controls>
         <summary>Time span</summary>

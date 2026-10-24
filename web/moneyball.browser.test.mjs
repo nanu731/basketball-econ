@@ -13,12 +13,14 @@ import { validateIndex, validateViewBundle, parseJSONBytes, INDEX_BYTE_LIMIT, VI
 test('public Moneyball release is discoverable and includes only cleared validated data', { skip: process.env.MONEYBALL_PUBLIC_RELEASE !== '1' }, async () => {
   assert.ok(process.env.MONEYBALL_BUILD_DIR, 'A production build is required');
   const build = await realpath(resolve(process.env.MONEYBALL_BUILD_DIR));
-  const route = '/projects/moneyball-basketball-edition/';
+  const route = '/projects/nba-economics/';
   const html = await readFile(join(build, route, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /noindex|Private preview|Private review only|remain unapproved|TODO_|github\.com\/nanu731\/basketball-econ/);
   assert.ok((await readFile(join(build, 'projects/index.html'), 'utf8')).includes(route), 'Project is missing from the public index');
   const sitemaps = await Promise.all((await readdir(build)).filter(name => /^sitemap.*\.xml$/.test(name)).map(name => readFile(join(build, name), 'utf8')));
   assert.ok(sitemaps.some(text => text.includes(route)), 'Project is missing from the sitemap');
+  assert.ok(sitemaps.every(text => !text.includes('/projects/moneyball-basketball-edition/')), 'Sitemap still lists the retired URL');
+  assert.match(html, /rel="canonical" href="https:\/\/www\.nslanalytics\.com\/projects\/nba-economics\/"/);
   const data = join(build, 'data/moneyball/v1');
   const index = validateIndex(parseJSONBytes(await readFile(join(data, 'index.json')), INDEX_BYTE_LIMIT));
   assert.equal(index.views.length, 45, 'Release differs from the reviewed 45-view catalog');
@@ -315,7 +317,7 @@ async function mountedScenario() {
 
 test('real mounted Moneyball retains comparison context and clears/retries corrupt views', { skip: !process.env.MONEYBALL_BUILD_DIR, timeout: 60000 }, async t => {
   const build = await realpath(resolve(process.env.MONEYBALL_BUILD_DIR));
-  const page = '/projects/moneyball-basketball-edition/';
+  const page = '/projects/nba-economics/';
   const html = await readFile(join(build, page, 'index.html'), 'utf8');
   assert.ok(html.match(/<p\b[^>]*data-mb-guide[^>]*>/)?.[0].includes('hidden'), 'No-JS guide must not link to unavailable interactive records');
   assert.match(html, /data-mb-million-summary[^>]*>In [^<]+\$1 million more[^<]+fitted league line/, 'Default association must be server-rendered for no-JS');
