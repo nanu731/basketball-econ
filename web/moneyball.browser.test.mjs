@@ -17,11 +17,15 @@ async function mountedScenario() {
     throw new Error(message);
   };
   const checkReturns = async ready => {
-    const expected = ready ? '#mb-player-comparison' : '#mb-snapshot-title', label = ready ? 'Back to player comparison' : 'Back to saved records';
-    const target = document.querySelector(expected), links = [...root.querySelectorAll('[data-mb-return]')];
-    check(links.length === 2 && target.checkVisibility(), 'Return destination is missing or hidden');
+    const links = [...root.querySelectorAll('[data-mb-return]')];
+    check(links.length === 3 && links.filter(link => link.dataset.mbReturn === 'controls').length === 1, 'Two calculation returns and one footer controls return are required');
     for (const link of links) {
-      check(link.getAttribute('href') === expected && link.textContent === label, 'Return link does not match readiness');
+      const toControls = link.dataset.mbReturn === 'controls';
+      const expected = ready ? (toControls ? '#mb-controls' : '#mb-player-comparison') : '#mb-snapshot-title';
+      const label = ready ? (toControls ? 'Back to controls' : 'Back to player comparison') : 'Back to saved records';
+      const target = document.querySelector(expected);
+      check(target?.checkVisibility(), 'Return destination is missing or hidden');
+      check(link.getAttribute('href') === expected && link.textContent === label, 'Return link does not match its route and readiness');
       for (let parent = link.parentElement; parent; parent = parent.parentElement) if (parent instanceof HTMLDetailsElement) parent.open = true;
       link.click(); await wait(() => document.activeElement === target, 'Return action did not focus its visible destination');
     }
@@ -281,7 +285,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   assert.ok(html.match(/<p\b[^>]*data-mb-guide[^>]*>/)?.[0].includes('hidden'), 'No-JS guide must not link to unavailable interactive records');
   assert.match(html, /data-mb-million-summary[^>]*>In [^<]+\$1 million more[^<]+fitted league line/, 'Default association must be server-rendered for no-JS');
   const savedReturns = html.match(/<a\b[^>]*data-mb-return[^>]*>Back to saved records<\/a>/g) ?? [];
-  assert.equal(savedReturns.length, 2, 'Both no-JS return links must name saved records');
+  assert.equal(savedReturns.length, 3, 'All three no-JS return links must name saved records');
   assert.ok(savedReturns.every(link => link.includes('href="#mb-snapshot-title"')), 'No-JS return links must target the visible saved records');
   assert.ok(html.match(/<h3\b[^>]*id="mb-snapshot-title"[^>]*>/)?.[0].includes('tabindex="-1"'), 'Saved heading must accept native return focus');
   assert.ok(html.includes("script-src 'self'") && html.includes('</body>'), 'Use the actual strict-CSP private build');
