@@ -8,3 +8,4 @@ source("tests/run.R")
 source("tests/sensitivity.R")
 
 source("tests/browser-scores.R")
+source("tests/browser-publication.R")

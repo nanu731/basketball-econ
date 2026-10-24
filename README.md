@@ -88,6 +88,14 @@ The `web/` directory contains the portable Astro component, native TypeScript ch
 
 The browser loads a small availability index and one selected view at a time. Private exports remain in ignored analysis outputs. A draft page alone does not protect files in a website's public directory: private review data must stay in an isolated local preview until release checks pass.
 
+To promote the frozen reviewed export after the project owner's explicit data reuse clearance, run from the repository root:
+
+```sh
+Rscript scripts/publish-browser.R outputs/private/browser-v1/moneyball-v1-4592fef1aab01a76fd87 --confirm-clearance
+```
+
+This offline step checks the pinned source fingerprint and writes a separate immutable version under ignored `outputs/released/browser-v1/`. Only publication metadata and its resulting fingerprint/version change; source files and all view values stay unchanged. The recorded clearance is the owner's confirmation on 2026-10-24, not a new provider license or an independent rights verification. Omitting the opt-in fails; synthetic exports remain unwritable through either publication writer. Website integration and deployment are separate steps.
+
 Completed-season snapshots refresh through an explicit acquisition and review, preserving their previous versions. No automatic refresh is enabled. A future current-season mode would need a separate year-to-date label, eligibility and staleness checks; a weekly refresh is a proposed starting schedule, not an enabled feature.
 
 ## License

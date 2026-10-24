@@ -195,14 +195,49 @@ browser_export_bundle_set <- function(common, views, data_origin) {
   list(index = index, view_bundles = bundles, data_origin = data_origin)
 }
 
-write_private_browser_exports <- function(exports, output_dir = "outputs/private/browser-v1") {
+.assert_browser_export_writable <- function(exports, publication_status) {
   if (!identical(exports$data_origin, "observed")) stop("Writing synthetic or unverified browser data is forbidden", call. = FALSE)
+  if (!length(exports$view_bundles)) stop("Missing browser views", call. = FALSE)
   for (bundle in exports$view_bundles) {
-    if (!identical(bundle$publication$status, "private-preview") ||
+    if (!identical(bundle$publication$status, publication_status) ||
         grepl("SYNTHETIC TEST FIXTURE|TEST_FIXTURE_", rawToChar(json_bytes(bundle)))) {
       stop("Fixture content or an unapproved release label cannot be written", call. = FALSE)
     }
   }
+  invisible(TRUE)
+}
+
+browser_release_publication <- function() list(status = "cleared",
+  note = "Public release. Data reuse clearance confirmed by the project owner on 2026-10-24.")
+
+promote_browser_publication <- function(exports, clearance_confirmed = FALSE) {
+  if (!isTRUE(clearance_confirmed)) stop("Explicit data reuse clearance confirmation is required", call. = FALSE)
+  .assert_browser_export_writable(exports, "private-preview")
+  fields <- c("schemaVersion", "publication", "sources", "definitions")
+  common <- exports$view_bundles[[1]][fields]
+  # Named R lists encode as objects; keep the fingerprint’s view array unchanged.
+  views <- unname(lapply(exports$view_bundles, function(bundle) bundle$views[[1]]))
+  original <- browser_export_bundle_set(common, views, exports$data_origin)
+  if (!identical(original, exports)) stop("Source export metadata, fingerprint or views differ", call. = FALSE)
+  common$publication <- browser_release_publication()
+  browser_export_bundle_set(common, views, exports$data_origin)
+}
+
+write_private_browser_exports <- function(exports, output_dir = "outputs/private/browser-v1") {
+  .assert_browser_export_writable(exports, "private-preview")
+  .write_browser_export_files(exports, output_dir)
+}
+
+write_cleared_browser_exports <- function(exports, output_dir = "outputs/released/browser-v1", clearance_confirmed = FALSE) {
+  if (!isTRUE(clearance_confirmed)) stop("Explicit data reuse clearance confirmation is required", call. = FALSE)
+  .assert_browser_export_writable(exports, "cleared")
+  if (any(!vapply(exports$view_bundles, function(bundle) identical(bundle$publication, browser_release_publication()), logical(1)))) {
+    stop("Cleared publication metadata must match the owner-confirmed release", call. = FALSE)
+  }
+  .write_browser_export_files(exports, output_dir)
+}
+
+.write_browser_export_files <- function(exports, output_dir) {
   destination <- file.path(output_dir, exports$index$dataVersion)
   write_immutable <- function(value, path, limit) {
     bytes <- json_bytes(value)
@@ -217,5 +252,5 @@ write_private_browser_exports <- function(exports, output_dir = "outputs/private
   sizes <- vapply(names(exports$view_bundles), function(id) write_immutable(exports$view_bundles[[id]],
     file.path(destination, "views", paste0(id, ".json")), if (id == exports$index$defaultView) 1000000L else 2000000L), integer(1))
   list(directory = destination, index_path = file.path(destination, "index.json"), index_bytes = index_bytes,
-       view_bytes = sizes, publication_status = "private-preview")
+       view_bytes = sizes, publication_status = exports$view_bundles[[1]]$publication$status)
 }
