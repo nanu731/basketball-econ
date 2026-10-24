@@ -317,7 +317,7 @@ export function playerComparisonCopy(p: Player, metric: Metric, view: View, unit
     unit: metric === 'war' ? `WAR · ${contributionUnit} · includes playing time` : `LEBRON · ${view.window > 1 ? 'average ' : ''}impact points/100 possessions`,
     direction: gap > 0 ? 'Above salary reference' : gap < 0 ? 'Below salary reference' : 'On salary reference',
     salary: units === 'share' ? `${decimal(p.salaryCapShare * 100)}%` : compactMoneyFormatter.format(p.salaryUsd),
-    salaryBasis: units === 'share' ? view.window > 1 ? 'Average share of each observed season’s cap' : 'Share of the season cap' : view.window > 1 ? `Average annual ${seasonLabel(view.endSeason)} cap-equivalent dollars` : 'Nominal dollars for this season',
+    salaryBasis: units === 'share' ? view.window > 1 ? 'Average share of each observed season’s cap' : 'Share of the season cap' : view.window > 1 ? `Average annual pay, adjusted to the ${seasonLabel(view.endSeason)} salary cap` : 'Season pay in US dollars',
     contribution: `${values.contribution} ${contributionUnit}`,
     reference: `${values.reference} ${contributionUnit}`,
     gap: `${values.gap} ${contributionUnit}`,
@@ -640,7 +640,7 @@ export function mountMoneyball(root: HTMLElement): void {
     get('selected-key').hidden = !selected; get('peer-key').dataset.hollow = String(!!selected);
     for (const button of get('example-buttons').querySelectorAll<HTMLButtonElement>('[data-player]')) button.setAttribute('aria-pressed', String(button.dataset.player === selected));
     txt('y-label', m === 'war' ? active.window > 1 ? 'Estimated wins · average per observed season' : 'Estimated wins · season total' : 'Impact points per 100 possessions');
-    txt('x-label', units.value === 'share' ? active.window === 1 ? 'Salary · % of season cap' : 'Salary · average % of observed season caps' : active.window === 1 ? 'Salary · US dollars' : `Average annual salary · ${seasonLabel(active.endSeason)} cap-equivalent dollars`);
+    txt('x-label', units.value === 'share' ? active.window === 1 ? 'Salary · % of season cap' : 'Salary · average % of observed season caps' : active.window === 1 ? 'Salary · US dollars' : `Average annual pay · adjusted to the ${seasonLabel(active.endSeason)} salary cap`);
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
     txt('view-context', `${viewLabel(active)} · ${metricLabel(m, active)}`); txt('view-model-name', active.models[m].name);
     if (bundle) txt('view-evidence', `${viewLabel(active)} · ${m.toUpperCase()} · ${active.models[m].name} · ${bundle.dataVersion}`);
@@ -649,11 +649,11 @@ export function mountMoneyball(root: HTMLElement): void {
     const t = active.teams.find(t => t.team === team.value);
     get('team-context').hidden = !team.value;
     get('team-audit-panel').hidden = !team.value || !t;
-    txt('team-scope', team.value ? `${teamName(team.value, active.endSeason)} membership: dots use full matched player records across teams in this span.` : '');
+    txt('team-scope', team.value ? `${teamName(team.value, active.endSeason)} players; dots include their full matched records across teams in this span.` : '');
     facts('team-summary', !team.value ? [] : [
-      ['Assigned matched records', t ? `${t.attributablePlayerSeasons} of ${t.eligiblePlayerSeasons} player-seasons` : 'Unavailable'],
-      ['Attributable pay', t?.salaryUsd == null ? 'Unavailable' : money(t.salaryUsd)],
-      ['Attributable WAR', t?.war == null ? 'Unavailable' : `${decimal(t.war)} estimated wins`],
+      ['Records assigned to this team', t ? `${t.attributablePlayerSeasons} of ${t.eligiblePlayerSeasons} player-seasons` : 'Unavailable'],
+      ['Pay from those records', t?.salaryUsd == null ? 'Unavailable' : money(t.salaryUsd)],
+      ['Estimated wins from those records', t?.war == null ? 'Unavailable' : `${decimal(t.war)} estimated wins`],
     ]);
     txt('team-basis', team.value ? `Partial totals: assignable matched records only; fixed during player search. ${active.window === 1 ? 'Totals cover this season.' : `Annual totals use the full ${active.window}-season span; pay uses the ending season’s cap.`}` : '');
     txt('team-audit', t ? `Matched team sample: ${t.attributablePlayerSeasons} assigned of ${t.eligiblePlayerSeasons} matched player-seasons. Broader active-source team rows have ${t.excludedTradeCount} trade/unknown-allocation flags and ${t.excludedMissingCount} missing-data flags. Those audit counts may overlap and include ineligible source rows; do not add them as separate groups or subtract them from the chart-player count. ${t.note}` : 'No team audit is loaded.');

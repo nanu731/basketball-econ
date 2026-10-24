@@ -52,7 +52,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   </form>
   <figure aria-labelledby="mb-chart-title" aria-describedby="mb-chart-guide mb-caption">
     <h2 id="mb-chart-title" class="mb-sr">Explore player value</h2>
-    <p id="mb-chart-guide" class="mb-guide" data-mb-guide hidden>Select a dot or search. <strong>Above/below:</strong> more/less than estimated at this pay. <a class="mb-ranked-link" href="#mb-ranked-records">Ranked comparisons</a></p>
+    <p id="mb-chart-guide" class="mb-guide" data-mb-guide hidden>Select a dot or search. <strong>Above the line:</strong> more than estimated at this pay; <strong>below:</strong> less. <a class="mb-ranked-link" href="#mb-ranked-records">Ranked comparisons</a></p>
     <div class="mb-chart-tools"><p class="mb-small"><span data-mb-status role="status" aria-live="polite">{state}</span><span data-mb-period></span></p></div>
     <section class="mb-team" data-mb-team-context hidden aria-label="Selected team scope and partial totals">
       <p class="mb-small" data-mb-team-scope></p>
@@ -81,9 +81,8 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
           <dl class="mb-comparison">
             <div><dt>Measured contribution</dt><dd data-mb-selected-contribution></dd></div>
             <div><dt>Reference at this pay</dt><dd data-mb-selected-reference></dd></div>
-            <div><dt>Reported pay</dt><dd data-mb-selected-salary></dd></div>
+            <div><dt>Reported pay</dt><dd data-mb-selected-salary></dd><p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p></div>
           </dl>
-          <p class="mb-small mb-pay-basis" data-mb-selected-salary-basis></p>
           <p class="mb-small" data-mb-selected-observed hidden></p>
           <details class="mb-comparison-details" data-mb-comparison-details><summary>More comparison details</summary>
             <dl class="mb-pay-rank"><div><dt><DefinitionHelp id="mb-value-percentile" label="Gap percentile" detailTarget="mb-percentile-calculation" detailLabel="Full calculation">Ranks this gap relative to eligible matched league gaps, not as a player grade. Tied gaps share a midpoint rank.</DefinitionHelp></dt><dd data-mb-selected-percentile></dd></div></dl>
@@ -298,7 +297,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-answer { margin: 0 0 var(--space-xs); }
   .mb-answer dt { font-size: var(--type-small); }
   .mb-answer dd small { font: 1rem/1.35 var(--font-body); }
-  .mb-pay-basis { display: block; font: var(--type-small)/1.35 var(--font-body); }
+  .mb-pay-basis { display: block; margin: var(--space-3xs) 0 0; font: var(--type-small)/1.35 var(--font-body); }
   .mb-controls-return, #mb-scroll-help a, .mb-ranked-link { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--type-small); }
   .mb-answer dd { margin: var(--space-2xs) 0 0; font: 600 1.5rem/1.25 var(--font-numeric); }
   .mb-selection > p { font-size: 1rem; margin: 0; }
@@ -325,7 +324,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
   .mb-chart-tools { display: flex; justify-content: space-between; align-items: center; gap: var(--space-s); margin-block: var(--space-2xs); }
   .moneyball .mb-chart-tools p { margin: 0; max-width: 65ch; }
   .mb-examples, .mb-examples > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); min-width: 0; }
-  .mb-examples { margin-block: 0; font-size: var(--type-small); }
+  .mb-examples { margin-block: var(--space-xs) 0; font-size: var(--type-small); }
   .mb-examples > div { flex: 1; max-width: 100%; }
   .mb-examples :global(button) { flex-shrink: 0; }
   .mb-examples :global(button) { box-sizing: border-box; min-height: 44px; padding: var(--space-2xs) var(--space-xs); border: var(--mb-rule); border-radius: 0; background: var(--cream); color: var(--green); font: inherit; cursor: pointer; touch-action: manipulation; }
@@ -404,7 +403,7 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     .mb-visible-context > button { grid-column: 2; grid-row: 3; align-self: end; }
     .mb-search-feedback, .mb-filters { grid-column: 1 / -1; }
   }
-  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xs); align-items: center; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
-  @media (max-width: 44rem) { :global(body.project--compact:has(.moneyball) .question-band.band .band-inner h1) { font-size: 1.875rem; } .mb-examples { margin-block: 0; } }
+  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3xs) var(--space-xs); align-items: center; } .mb-comparison .mb-pay-basis { grid-column: 1 / -1; margin: 0; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
+  @media (max-width: 44rem) { :global(body.project--compact:has(.moneyball) .question-band.band .band-inner h1) { font-size: 1.875rem; } }
   @media print { .mb-controls, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

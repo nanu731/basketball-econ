@@ -107,7 +107,7 @@ async function mountedScenario() {
     const examples = [...q('example-buttons').querySelectorAll('button')];
     check(examples.length > 0 && examples.length <= 3 && !q('chart').querySelector('.mb-selected'), 'Examples missing or auto-selected');
     check(examples.every(b => one.players.some(p => p.id === b.dataset.player && p.label)), 'Example was not an eligible labeled player');
-    check(!q('examples').closest('fieldset') && q('examples').previousElementSibling === q('selection-panel') && q('examples').getBoundingClientRect().top >= q('selection-panel').getBoundingClientRect().bottom - 1, 'Examples are not immediately after the selected result');
+    check(!q('examples').closest('fieldset') && q('examples').previousElementSibling === q('selection-panel') && q('examples').getBoundingClientRect().top >= q('selection-panel').getBoundingClientRect().bottom + 8, 'Examples are not after the result with enough room for its focus outline');
     check(examples.every(b => b.getBoundingClientRect().height >= 44 && getComputedStyle(b).fontFamily === getComputedStyle(q('examples')).fontFamily && getComputedStyle(b).borderTopStyle === 'solid'), 'Example buttons lost house styling or 44px targets');
     examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
     check(document.activeElement === q('selection-panel') && q('selection-panel').getBoundingClientRect().top >= -1 && q('selection-panel').getBoundingClientRect().top < innerHeight, 'Example selection did not focus and reveal the changed result');
@@ -146,7 +146,7 @@ async function mountedScenario() {
     check(q('view-comparison').contains(q('search-result')) && q('search-instructions').textContent === '' && q('view-comparison').getBoundingClientRect().height >= 44, 'Selected feedback is not one accessible comparison action');
     check(!q('view-comparison').hidden && q('view-comparison').getAttribute('href') === '#mb-player-comparison', 'Search lacks a route to its selected comparison');
     check(q('guide').textContent.startsWith('Select a dot or search.') && q('guide').getBoundingClientRect().top < q('chart').getBoundingClientRect().top && root.querySelector('.mb-ranked-link').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Invitation or ranked route is below the plot');
-    check(!q('selected-salary-basis').closest('dd'), 'Salary basis is inside a value column');
+    check(!q('selected-salary-basis').closest('dd') && q('selected-salary-basis').previousElementSibling === q('selected-salary'), 'Salary basis is not directly after the pay value, outside its definition');
     if (innerWidth <= 704) check(q('selected-salary-basis').getBoundingClientRect().width > q('comparison').getBoundingClientRect().width * .9, 'Phone salary basis is trapped in a narrow value column');
     const legend = q('chart').closest('.mb-chart-layout').querySelector('.mb-legend');
     check(legend.getBoundingClientRect().top < q('selection-panel').getBoundingClientRect().top && legend.contains(q('find-player')), 'Legend/search alternative is not between plot and facts');
@@ -191,7 +191,7 @@ async function mountedScenario() {
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
     check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank}th percentile of league gaps`, 'Team filter changed cohort reference/rank');
-    check(q('team-scope').textContent.includes('full matched player records across teams') && q('team-basis').textContent.includes('fixed during player search') && q('team-context').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Team population or search scope is missing near the chart controls');
+    check(q('team-scope').textContent.includes('full matched records across teams') && q('team-basis').textContent.includes('fixed during player search') && q('team-context').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Team population or search scope is missing near the chart controls');
     const teamTotal = one.teams.find(t => t.team === 'NYK'), teamValues = [...q('team-summary').querySelectorAll('dd')].map(el => el.textContent);
     check(teamValues[0] === `${teamTotal.attributablePlayerSeasons} of ${teamTotal.eligiblePlayerSeasons} player-seasons` && teamValues[1] === new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(teamTotal.salaryUsd), 'Structured team totals differ from saved assigned sample');
     const fixedTotals = q('team-summary').textContent; q('search').value = team[0].name.slice(0, 3); q('search').dispatchEvent(new Event('input', { bubbles: true })); check(q('team-summary').textContent === fixedTotals, 'Draft player search changed fixed team totals'); choose(team[0]);
@@ -212,7 +212,7 @@ async function mountedScenario() {
     check(q('selected-percentile').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(multiPlayer.valuePercentile.lebron) + 'th percentile of league gaps', 'Window/metric rank stayed stale');
     check(q('selected-observed').textContent.includes('of 3 seasons'), 'Observed-season context missing');
     association(multi, 'lebron'); check(q('million-context').textContent.includes('cap-equivalent') && q('million-context').textContent.includes('LEBRON'), 'Multi-year comparison basis stayed stale');
-    check(q('season-label').textContent === 'Season ending' && q('selected-salary-basis').textContent.includes('Average annual') && q('selected-salary-basis').textContent.includes('cap-equivalent dollars'), 'Multi-year salary or season-ending basis is ambiguous');
+    check(q('season-label').textContent === 'Season ending' && q('selected-salary-basis').textContent.includes('Average annual pay, adjusted to') && q('selected-salary-basis').textContent.includes('salary cap'), 'Multi-year salary or season-ending basis is ambiguous');
     change('units', 'share'); check(q('selected-salary').textContent === new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(multiPlayer.salaryCapShare * 100) + '%' && q('selected-salary-basis').textContent.includes('each observed season'), 'Selected pay ignored cap-share units'); change('units', 'usd');
     readableMetric(); check(q('period').textContent.includes('3 seasons') && q('window-note').hidden && q('window-note').textContent === '' && q('selected-unit').textContent.includes('average impact'), 'Average context was hidden');
     const armed = await fetch('/__moneyball-arm', { method: 'POST' }); check(armed.ok, 'Fault was not armed'); hover(dots()[0]); change('window', '5'); check(!hoveredName(), 'Loading retained hover');
