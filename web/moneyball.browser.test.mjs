@@ -60,8 +60,9 @@ async function mountedScenario() {
     readableMetric();
     check(q('period').textContent.includes('Regular seasons') && q('metric-note').textContent.includes('fill-in'), 'Season scope or plain zero baseline missing');
     const contextPanel = q('context-controls');
-    check(contextPanel.tagName === 'DETAILS' && !contextPanel.open && contextPanel.querySelector('summary').textContent === 'Change season, team or time span', 'Named native context disclosure missing or initially open');
-    check(['season', 'team', 'window'].every(k => root.querySelectorAll(`[data-mb-${k}]`).length === 1 && contextPanel.contains(q(k))), 'Context controls duplicated or outside the named panel');
+    check(contextPanel.tagName === 'DETAILS' && !contextPanel.open && contextPanel.querySelector('summary').textContent === 'Time span and salary units', 'Named native context disclosure missing or initially open');
+    check(['season', 'team', 'window', 'reset', 'units'].every(k => root.querySelectorAll(`[data-mb-${k}]`).length === 1), 'Controls are duplicated');
+    check(['season', 'team', 'reset'].every(k => !q(k).closest('details')) && contextPanel.contains(q('window')) && contextPanel.contains(q('units')), 'Primary context/reset is hidden or advanced controls are misplaced');
     check(q('period').textContent.includes('All teams') && !q('period').closest('details') && !q('window-note').closest('details'), 'Collapsed active context is hidden');
     const hero = document.querySelector('.question-band.band');
     check(hero && parseFloat(getComputedStyle(hero).paddingTop) <= 12.1 && parseFloat(getComputedStyle(hero).paddingBottom) <= 12.1, 'Project compact hero padding override did not apply');
@@ -83,7 +84,7 @@ async function mountedScenario() {
     const examples = [...q('example-buttons').querySelectorAll('button')];
     check(examples.length > 0 && examples.length <= 3 && !q('chart').querySelector('.mb-selected'), 'Examples missing or auto-selected');
     check(examples.every(b => one.players.some(p => p.id === b.dataset.player && p.label)), 'Example was not an eligible labeled player');
-    check(q('examples').closest('.mb-selection'), 'Examples compete with the pre-chart hierarchy');
+    check(q('examples').closest('form') && q('examples').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Examples are not beside the opening search');
     check(examples.every(b => b.getBoundingClientRect().height >= 44 && getComputedStyle(b).fontFamily === getComputedStyle(q('examples')).fontFamily && getComputedStyle(b).borderTopStyle === 'solid'), 'Example buttons lost house styling or 44px targets');
     examples[0].click(); check(q('chart').querySelector('.mb-selected')?.dataset.player === examples[0].dataset.player && dots().length === one.players.length, 'Example did not commit with peers');
     const beforeShortcut = q('search').value; q('find-player').click();
@@ -111,7 +112,12 @@ async function mountedScenario() {
       check(q('selected-scale').textContent.includes(`about ${scaleText}`) && q('selected-scale').textContent.includes('median distance') && !q('selected-scale').textContent.includes('matched players') && q('selected-cohort').textContent.includes(`${view.players.length} eligible matched players`), 'Rounded native scale or single full cohort context missing');
       check(getComputedStyle(q('selected-magnitude')).fontSize === '18px' && getComputedStyle(q('selected-magnitude')).fontWeight === '600', 'Gap-size number hierarchy missing');
     };
-    choose(player); connector(); gapSize(player, 'war', one); check(q('million-summary').textContent === defaultAssociation, 'Player search changed league association');
+    choose(player); connector();
+    check(!q('comparison-details').open && q('selected-percentile').closest('details') === q('comparison-details') && !q('selected-gap').closest('details'), 'Primary gap or secondary comparison hierarchy is wrong');
+    check(!q('view-comparison').hidden && q('view-comparison').getAttribute('href') === '#mb-player-comparison', 'Search lacks a route to its selected comparison');
+    const legend = q('chart').closest('.mb-chart-layout').querySelector('.mb-legend');
+    check(legend.getBoundingClientRect().top < q('selection-panel').getBoundingClientRect().top && legend.contains(q('find-player')), 'Legend/search alternative is not between plot and facts');
+    q('comparison-details').open = true; gapSize(player, 'war', one); check(q('million-summary').textContent === defaultAssociation, 'Player search changed league association');
     const pinnedRank = q('selected-percentile').textContent; hover(dots().find(d => d.dataset.player === peer.id));
     check(hoveredName() === peer.name && q('chart').querySelector('.mb-selected')?.dataset.player === player.id && q('search').value === player.name && q('selected-percentile').textContent === pinnedRank, 'Peer hover replaced the pinned comparison');
     q('chart').dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' })); check(!hoveredName(), 'Chart exit retained hover');
@@ -119,22 +125,43 @@ async function mountedScenario() {
     check(/^[+−]/.test(q('selected-gap').textContent) && q('peer-key').dataset.hollow === 'true' && !q('selected-key').hidden, 'Signed gap or selected legend missing');
     check(dots().length === one.players.length && reference() === baseline, 'Selection lost peers or changed the reference');
     q('live-table').open = true; await wait(() => q('rows').querySelectorAll('[data-player]').length === one.players.length, 'Selected table lost peers');
+    const region = q('rows').closest('.mb-table-scroll'), recordTable = q('rows').closest('table');
+    // Force horizontal overflow independently of the test window; root also inspects the actual 375px viewport.
+    region.style.maxWidth = '343px'; region.focus();
+    check(getComputedStyle(recordTable).display === 'table' && getComputedStyle(recordTable).overflowX === 'visible' && region.scrollWidth > region.clientWidth, 'Labeled wrapper is not the sole horizontal scroll owner');
+    check(region.clientHeight <= Math.min(parseFloat(getComputedStyle(document.documentElement).fontSize) * 28, innerHeight * .7) + 1 && region.scrollHeight > region.clientHeight && q('rows').querySelector('button').getBoundingClientRect().height >= 44, 'Interactive table is unbounded or player targets too small');
+    const keyResponse = await fetch('/__moneyball-arrow-right', { method: 'POST' }); check(keyResponse.ok, 'Trusted keyboard input failed');
+    await wait(() => region.scrollLeft > 0, 'ArrowRight did not scroll the focused labeled table region');
+    check(Math.abs(recordTable.querySelector('tbody th').getBoundingClientRect().left - region.getBoundingClientRect().left) < 2, 'Player identity did not stay visible during horizontal scroll');
+    region.scrollTop = 160;
+    check(Math.abs(recordTable.querySelector('thead th').getBoundingClientRect().top - region.getBoundingClientRect().top) < 2, 'Table header did not stay visible while scrolling');
+    region.scrollTop = 0; region.scrollLeft = 0; region.style.maxWidth = '';
+    const order = [...q('rows').querySelectorAll('[data-player]')].map(button => one.players.find(p => p.id === button.dataset.player).residual.war);
+    check(order.every((value, i) => i === 0 || order[i - 1] >= value) && q('table-order').textContent.includes('WAR'), 'Table is not ordered/labeled by active native gap');
+    check([...q('rows').querySelectorAll('tr')].every(row => !row.lastElementChild.textContent.includes('×')), 'Table repeats the multiple unit in each row');
+    q('rows').querySelector(`[data-player="${peer.id}"]`).click();
+    check(document.activeElement === q('selection-panel') && q('selection-panel').getBoundingClientRect().top >= -1 && q('selection-panel').getBoundingClientRect().top < innerHeight && q('search').value === peer.name, 'Table selection did not reveal/focus the comparison');
+    choose(player);
+    check(document.documentElement.scrollWidth <= innerWidth + 1, 'Record table overflow escaped onto the page');
     dots().find(el => el.dataset.player === peer.id).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     check(q('chart').querySelector('.mb-selected')?.dataset.player === peer.id && q('search').value === peer.name && dots().length === one.players.length, 'Visible peer cannot be selected'); connector();
     q('search').value = 'zzzz'; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Draft input retained gap size');
     check(!q('chart').querySelector('.mb-selected') && dots().length === 0 && !q('rows').querySelector('[data-player]'), 'Typing did not clear selection and filter');
-    choose(player); contextPanel.querySelector('summary').click(); check(contextPanel.open && q('team').getBoundingClientRect().height >= 44, 'Native panel did not expose usable controls'); change('team', 'NYK');
+    check(!q('no-matches').hidden && q('count').textContent.includes('0 search matches'), 'No-match state is not identified beside the plot');
+    q('clear-search').click(); check(q('search').value === '' && q('no-matches').hidden && dots().length === one.players.length, 'Clear search did not restore chart peers');
+    choose(player); check(q('team').getBoundingClientRect().height >= 44, 'Visible team control is unusable'); change('team', 'NYK');
     const team = one.players.filter(p => p.teams.includes('NYK')); check(team.length, 'NYK cohort missing'); choose(team[0]);
     const expectedRank = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(team[0].valuePercentile.war);
     check(dots().length === team.length && reference() === baseline && q('selected-percentile').textContent === `${expectedRank} / 100`, 'Team filter changed cohort reference/rank');
-    contextPanel.querySelector('summary').click(); check(!contextPanel.open && q('period').textContent.includes('New York Knicks'), 'Collapsed team context stayed stale');
+    check(!contextPanel.open && q('period').textContent.includes('New York Knicks'), 'Visible team context stayed stale');
     check([...q('example-buttons').querySelectorAll('button')].every(b => team.some(p => p.id === b.dataset.player && p.label)), 'Team examples stayed stale');
     check(q('coverage-summary').textContent.startsWith(`League coverage: ${one.coverage.matched} matched of ${one.coverage.eligible} eligible`) && !q('coverage-summary').textContent.includes('Knicks'), 'League coverage reads as selected-team coverage');
     check(q('selected-cohort').textContent.includes(String(one.players.length)), 'Rank denominator changed'); gapSize(team[0], 'war', one); association(one, 'war'); check(q('million-summary').textContent === defaultAssociation, 'Team filter changed league association');
     change('team', ''); choose(player); change('metric', 'lebron'); connector();
     gapSize(player, 'lebron', one);
     check(q('metric-note').textContent.includes('league-average'), 'Rate zero baseline missing'); association(one, 'lebron');
+    contextPanel.querySelector('summary').click(); check(contextPanel.open && q('window').getBoundingClientRect().height >= 44, 'Advanced span control is unusable');
     change('window', '3');
     check(fields.every(f => q(`million-${f}`).textContent === '') && !q('example-buttons').childElementCount && q('find-player').disabled && q('selected-reference').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Loading retained stale guided/result fields');
     await wait(() => !q('search').disabled && dots().length === multi.players.length, 'Three-season view did not mount'); connector();
@@ -150,6 +177,7 @@ async function mountedScenario() {
     check(!q('example-buttons').childElementCount && q('examples').hidden && q('find-player').disabled && q('selected-reference').textContent === '' && q('coverage-summary').textContent === '' && q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Failed view retained new results/actions');
     check(!q('reset').disabled && q('units').disabled, 'Reset lost recovery availability outside the controls fieldset');
     check(q('search').disabled && !q('snapshot').hidden && q('snapshot').querySelector('tbody tr'), 'Disabled controls or SSR fallback missing');
+    check(q('guide').hidden && q('no-matches').hidden && q('view-comparison').hidden && !q('retry').hidden && q('snapshot').querySelector('h3').textContent.includes('2025–26'), 'Failure guidance or saved record label is wrong');
     check(q('search').value === '' && q('suggestions').hidden && !reference(), 'Stale search or chart survived failure');
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Retry did not recover');
     check(!q('search').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
@@ -163,6 +191,20 @@ async function mountedScenario() {
     choose(prior.players[0]); gapSize(prior.players[0], 'war', prior); association(prior, 'war');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
     check(q('selected-magnitude').textContent === '' && q('selected-scale').textContent === '', 'Year reset retained gap size'); association(one, 'war');
+    change('window', '5'); await wait(() => !q('search').disabled && q('window').value === '5', 'Five-season setup did not recover');
+    const earliest = index.views.filter(v => v.window === 1).sort((a, b) => a.endSeason - b.endSeason)[0];
+    change('season', String(earliest.endSeason)); await wait(() => !q('search').disabled && q('window').value === '1', 'Unsupported time span did not fall back safely');
+    check(q('status').textContent.includes('5-season span is unavailable') && q('status').textContent.includes('showing 1 season'), 'Automatic span fallback was silent');
+    q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Final reset failed');
+    const methodPanels = [...root.querySelectorAll('.mb-methods > details')];
+    check(methodPanels.length === 3 && methodPanels.map(panel => panel.querySelector('summary').textContent).join('|') === 'Reading the chart|Methods and limitations|Sources and code', 'Methods/source destinations were not consolidated');
+    check(q('view-sources').querySelectorAll('a').length === 3 && !/retrieved|[a-f0-9]{64}/.test(q('view-sources').textContent) && q('view-source-versions').textContent.includes('retrieved'), 'Source attribution/provenance layers are wrong');
+    check(q('view-method').textContent === one.models.war.method && q('view-validation').textContent === one.models.war.validation, 'Labeled technical method/validation differs from the export');
+    check(getComputedStyle(q('snapshot').querySelector('.mb-table-scroll')).maxHeight === 'none', 'Saved no-JS record access was bounded');
+    for (const [term, targetId] of [['mb-gap-size', 'mb-gap-size-calculation'], ['mb-value-percentile', 'mb-percentile-calculation']]) {
+      const link = root.querySelector(`definition-help[data-term="${term}"] [data-detail-target]`), target = document.getElementById(targetId);
+      check(link?.dataset.detailTarget === targetId && target?.matches('h4[data-reference-target][tabindex="-1"]'), 'Full calculation link does not target its own focusable formula heading');
+    }
     document.body.dataset.moneyballTest = 'passed';
   } catch (error) {
     document.body.dataset.moneyballTest = 'failed'; document.body.dataset.moneyballError = encodeURIComponent(error.stack ?? String(error));
@@ -181,6 +223,25 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   const server = createServer(async (req, res) => {
     try {
       const pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
+      if (pathname === '/__moneyball-arrow-right' && req.method === 'POST') {
+        const port = (await readFile(join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0];
+        const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+        const target = targets.find(target => target.type === 'page' && new URL(target.url).pathname === page);
+        assert.ok(target, 'Mounted Chrome page target missing');
+        await new Promise((done, reject) => {
+          const socket = new WebSocket(target.webSocketDebuggerUrl);
+          socket.addEventListener('error', reject, { once: true });
+          socket.addEventListener('close', () => reject(new Error('Keyboard connection closed early')), { once: true });
+          socket.addEventListener('open', () => socket.send(JSON.stringify({ id: 1, method: 'Input.dispatchKeyEvent', params: { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 } })), { once: true });
+          socket.addEventListener('message', event => {
+            const result = JSON.parse(event.data);
+            if (result.error) { reject(new Error(result.error.message)); socket.close(); }
+            else if (result.id === 1) socket.send(JSON.stringify({ id: 2, method: 'Input.dispatchKeyEvent', params: { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 } }));
+            else if (result.id === 2) { done(); socket.close(); }
+          });
+        });
+        res.writeHead(204); res.end(); return;
+      }
       if (pathname === '/__moneyball-arm' && req.method === 'POST') { armed = true; res.writeHead(204); res.end(); return; }
       if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       let body, type;
@@ -205,7 +266,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   });
   await new Promise((done, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', done); });
   const executable = process.env.MONEYBALL_CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  browser = promisify(execFile)(executable, ['--headless', '--window-size=1440,1000', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, '--dump-dom', '--virtual-time-budget=10000', `http://127.0.0.1:${server.address().port}${page}`], { timeout: 45000, maxBuffer: 8 * 1024 * 1024, signal: t.signal });
+  browser = promisify(execFile)(executable, ['--headless', '--remote-debugging-port=0', '--window-size=1440,1000', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, '--dump-dom', '--virtual-time-budget=10000', `http://127.0.0.1:${server.address().port}${page}`], { timeout: 45000, maxBuffer: 8 * 1024 * 1024, signal: t.signal });
   const { stdout, stderr } = await browser;
   const result = stdout.match(/data-moneyball-test="([^"]*)"/)?.[1], error = stdout.match(/data-moneyball-error="([^"]*)"/)?.[1];
   assert.equal(result, 'passed', error ? decodeURIComponent(error) : `Mounted test did not finish. ${stderr.slice(-2000)}`);

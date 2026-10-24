@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -320,9 +320,9 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
 });
 
 test('WAR control labels distinguish totals and averages without the long unit phrase', () => {
-  assert.equal(warOptionLabel(1), 'Season contribution · WAR');
-  assert.equal(warOptionLabel(3), 'Average season contribution · WAR');
-  assert.equal(warOptionLabel(5), 'Average season contribution · WAR');
+  assert.equal(warOptionLabel(1), 'WAR · total');
+  assert.equal(warOptionLabel(3), 'WAR · average');
+  assert.equal(warOptionLabel(5), 'WAR · average');
 });
 
 // Pixel coordinates and names below are synthetic collision fixtures.
@@ -548,4 +548,14 @@ test('gap-size copy preserves units and the full cohort across filters', () => {
   assert.throws(() => gapMultiple(Infinity));
   view.gapSize.war.scale = 1.14398529975314; assert.match(gapScaleCopy('war', view), /about 1.14 WAR\/observed season/);
   view.gapSize.war.scale = 1e-300; assert.match(gapScaleCopy('war', view), /about 1e-300 WAR/);
+});
+
+test('table rows sort by the active native gap descending without changing cohort data', () => {
+  const view = rankedFixture([-3, 0, 0, 2]).views[0], before = structuredClone(view.players);
+  const war = sortGapRows(view.players, 'war'), rate = sortGapRows(view.players, 'lebron');
+  assert.deepEqual(war.map(p => p.residual.war), [2, 0, 0, -3]);
+  assert.deepEqual(rate.map(p => p.residual.lebron), [2, 0, 0, -3]);
+  assert.notEqual(war[0].id, rate[0].id); assert.deepEqual(view.players, before);
+  assert.deepEqual(sortGapRows(war.filter(p => p.teams.includes('TEST')), 'war').map(p => p.residual.war), [2, 0]);
+  assert.equal(gapMultiple(2, false), '+2.00'); assert.equal(gapMultiple(null, false), 'Unavailable');
 });
