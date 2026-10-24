@@ -320,9 +320,9 @@ test('selected comparison preserves native-unit gaps and distinguishes player an
 });
 
 test('WAR control labels distinguish totals and averages without the long unit phrase', () => {
-  assert.equal(warOptionLabel(1), 'Wins incl. playing time');
-  assert.equal(warOptionLabel(3), 'Avg wins incl. playing time');
-  assert.equal(warOptionLabel(5), 'Avg wins incl. playing time');
+  assert.equal(warOptionLabel(1), 'Estimated wins (WAR)');
+  assert.equal(warOptionLabel(3), 'Avg est. wins (WAR)');
+  assert.equal(warOptionLabel(5), 'Avg est. wins (WAR)');
 });
 
 // Pixel coordinates and names below are synthetic collision fixtures.

@@ -31,15 +31,15 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
             <div id="mb-player-suggestions" class="suggestion-menu" data-mb-suggestions role="listbox" aria-label="Matched players in this view" hidden></div>
           </div>
         </div>
-        <label>Contribution<select data-mb-metric><option value="war">Wins incl. playing time</option><option value="lebron">Impact when playing</option></select></label>
+        <label>Contribution<select data-mb-metric><option value="war">Estimated wins (WAR)</option><option value="lebron">Impact when playing</option></select></label>
       </div>
-      <div class="mb-search-feedback"><p class="mb-small" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result></p><a data-mb-view-comparison href="#mb-player-comparison" hidden>View player comparison</a></div>
-      <div class="mb-examples" data-mb-examples hidden><span>Try:</span><div data-mb-example-buttons></div></div>
       <div class="mb-visible-context">
         <label><span data-mb-season-label>Season</span><select data-mb-season aria-label="Season ending"><option value="">Awaiting data</option></select></label>
         <label>Team<select data-mb-team><option value="">All teams</option></select></label>
         <button type="button" data-mb-reset>Reset</button>
       </div>
+      <div class="mb-search-feedback"><p class="mb-small" id="mb-search-result" role="status" aria-live="polite" data-mb-search-result></p><a data-mb-view-comparison href="#mb-player-comparison" hidden>View player comparison</a></div>
+      <div class="mb-examples" data-mb-examples hidden><span>Try:</span><div data-mb-example-buttons></div></div>
       <details class="mb-filters" data-mb-context-controls>
         <summary>Time span and salary units</summary>
         <div class="mb-secondary">
@@ -378,7 +378,17 @@ const defaultMillion = data ? millionSummary(data.views[0], 'war') : null;
     :global(body.project--compact:has(.moneyball) > header nav .internal-links) { flex: 1; justify-content: flex-end; }
     :global(body.project--compact:has(.moneyball) > header nav a) { padding-inline: 4px; font-size: .875rem; }
   }
-  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xs); align-items: center; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-primary { grid-template-columns: minmax(0, 1fr); } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-primary, .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
+  @media (max-width: 44rem) {
+    .mb-controls { display: grid; grid-template-columns: minmax(0, 1fr) 7rem; gap: var(--space-xs); padding-block: 4px; }
+    .mb-primary, .mb-visible-context { display: contents; }
+    .mb-search { grid-column: 1 / -1; grid-row: 1; }
+    .mb-primary > label { grid-column: 1; grid-row: 2; }
+    .mb-visible-context > label:first-child { grid-column: 2; grid-row: 2; }
+    .mb-visible-context > label:nth-child(2) { grid-column: 1; grid-row: 3; }
+    .mb-visible-context > button { grid-column: 2; grid-row: 3; align-self: end; }
+    .mb-search-feedback, .mb-examples, .mb-filters { grid-column: 1 / -1; }
+  }
+  @media (max-width: 44rem) { .mb-comparison { grid-template-columns: 1fr; gap: var(--space-2xs); } .mb-comparison > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-xs); align-items: center; } .mb-comparison dd { margin: 0; } .mb-chart-tools { align-items: start; } .mb-legend { gap: 0 var(--space-xs); padding-block: 0; } .mb-legend > span { min-height: 44px; } .mb-legend :global(.definition-trigger) { padding-block: 0; min-height: 44px; } .mb-selection { padding-top: var(--space-xs); } .mb-secondary { gap: var(--space-xs); } .mb-secondary > button { align-self: end; } .mb-stage { min-height: 340px; } [data-mb-chart] { height: 340px; } .mb-plot { padding-inline: var(--space-2xs); } .mb-empty { padding: var(--space-s); } .mb-methods { margin-top: var(--space-m); } }
   @media (max-width: 44rem) { :global(body.project--compact:has(.moneyball) .question-band.band .band-inner h1) { font-size: 1.875rem; } .mb-examples { margin-block: 0; } }
   @media print { .mb-controls, .mb-chart-layout { display: none; } [data-mb-snapshot] { display: block !important; } .mb-table-scroll { overflow: visible; } }
 </style>

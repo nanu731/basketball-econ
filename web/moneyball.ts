@@ -248,7 +248,7 @@ export const money = (v: number): string => {
 };
 export const salaryCoverage = (v: View): string => { const c = v.coverage; return `Known active compensation included: ${money(c.includedKnownSalaryUsd)} of ${money(c.allKnownActiveSalaryUsd)} (${c.allKnownActiveSalaryUsd > 0 ? `${decimal(c.includedKnownSalaryUsd / c.allKnownActiveSalaryUsd * 100)}%` : 'coverage undefined: no known-dollar denominator'}). ${c.unknownSalaryPlayerSeasons} player-seasons have unknown salary; ${c.eligiblePlayerSeasons} matched active player-seasons retained from ${c.sourcePlayerSeasons} active source player-seasons. ${v.window > 1 ? 'Both dollar totals are annual ending-season cap-equivalent amounts across the full window. ' : ''}This is known matched-sample coverage, not whole payroll.`; };
 export const metricLabel = (m: Metric, v?: View): string => m === 'lebron' ? 'LEBRON · points / 100 possessions' : v && v.window > 1 ? 'WAR · average / observed season' : 'WAR · season total';
-export const warOptionLabel = (window: View['window']): string => window === 1 ? 'Wins incl. playing time' : 'Avg wins incl. playing time';
+export const warOptionLabel = (window: View['window']): string => window === 1 ? 'Estimated wins (WAR)' : 'Avg est. wins (WAR)';
 
 function gapNumber(value: number): string {
   const magnitude = Math.abs(num(value));

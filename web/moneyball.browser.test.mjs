@@ -75,6 +75,11 @@ async function mountedScenario() {
       check(select.clientWidth >= context.measureText(select.selectedOptions[0].textContent).width + 26, 'Active long metric label is clipped');
     };
     readableMetric();
+    if (innerWidth <= 704) {
+      const bounds = key => q(key).getBoundingClientRect(), metricBounds = bounds('metric'), seasonBounds = bounds('season'), teamBounds = bounds('team'), resetBounds = bounds('reset');
+      check(bounds('search').width > root.clientWidth * .9 && Math.abs(metricBounds.top - seasonBounds.top) < 1 && Math.abs(teamBounds.top - resetBounds.top) < 1, 'Phone controls are not full-width search followed by paired contribution/season and team/reset');
+      check(metricBounds.bottom <= teamBounds.top && seasonBounds.bottom <= resetBounds.top, 'Phone control rows overlap');
+    }
     check(q('period').textContent.includes('Regular season') && q('metric-note').textContent.includes('fill-in'), 'Season scope or plain zero baseline missing');
     const contextPanel = q('context-controls');
     check(contextPanel.tagName === 'DETAILS' && !contextPanel.open && contextPanel.querySelector('summary').textContent === 'Time span and salary units', 'Named native context disclosure missing or initially open');
