@@ -1,20 +1,44 @@
-// Run against a fresh private build: MONEYBALL_BUILD_DIR=/absolute/build node --test web/moneyball.browser.test.mjs
+// Run against a fresh built site: MONEYBALL_BUILD_DIR=/absolute/build node --test web/moneyball.browser.test.mjs
 // Optional MONEYBALL_CHROME_BIN overrides the installed macOS Chrome executable. No build/data files are written.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile, realpath, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, readdir, realpath, mkdtemp, rm } from 'node:fs/promises';
 import { resolve, sep, extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { validateIndex, validateViewBundle, parseJSONBytes, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT } from './moneyball.ts';
+
+test('public Moneyball release is discoverable and includes only cleared validated data', { skip: process.env.MONEYBALL_PUBLIC_RELEASE !== '1' }, async () => {
+  assert.ok(process.env.MONEYBALL_BUILD_DIR, 'A production build is required');
+  const build = await realpath(resolve(process.env.MONEYBALL_BUILD_DIR));
+  const route = '/projects/moneyball-basketball-edition/';
+  const html = await readFile(join(build, route, 'index.html'), 'utf8');
+  assert.doesNotMatch(html, /noindex|Private preview|Private review only|remain unapproved|TODO_|github\.com\/nanu731\/basketball-econ/);
+  assert.ok((await readFile(join(build, 'projects/index.html'), 'utf8')).includes(route), 'Project is missing from the public index');
+  const sitemaps = await Promise.all((await readdir(build)).filter(name => /^sitemap.*\.xml$/.test(name)).map(name => readFile(join(build, name), 'utf8')));
+  assert.ok(sitemaps.some(text => text.includes(route)), 'Project is missing from the sitemap');
+  const data = join(build, 'data/moneyball/v1');
+  const index = validateIndex(parseJSONBytes(await readFile(join(data, 'index.json')), INDEX_BYTE_LIMIT));
+  assert.equal(index.views.length, 45, 'Release differs from the reviewed 45-view catalog');
+  assert.deepEqual((await readdir(data, { recursive: true })).sort(), ['index.json', 'views', ...index.views.map(view => `views/${view.id}.json`)].sort(), 'Unexpected public Moneyball files');
+  for (const entry of index.views) {
+    const bytes = await readFile(join(data, 'views', `${entry.id}.json`));
+    assert.doesNotMatch(bytes.toString(), /SYNTHETIC TEST FIXTURE|TEST_FIXTURE_|file:\/\/|\/Users\//);
+    const bundle = validateViewBundle(parseJSONBytes(bytes, VIEW_BYTE_LIMIT), entry, index.dataVersion);
+    assert.equal(bundle.publication.status, 'cleared', `Uncleared view: ${entry.id}`);
+  }
+});
 
 async function mountedScenario() {
   const root = document.querySelector('[data-moneyball]'), q = key => root.querySelector(`[data-mb-${key}]`);
   const check = (condition, message) => { if (!condition) throw new Error(message); };
   const wait = async (condition, message) => {
     for (let i = 0; i < 100; i++) { if (condition()) return; await new Promise(r => setTimeout(r, 50)); }
-    throw new Error(message);
+    const state = { season: q('season').value, window: q('window').value, status: q('status').textContent,
+      searchDisabled: q('search').disabled, dots: q('chart').querySelectorAll('circle[data-player]').length, period: q('period').textContent };
+    throw new Error(`${message}; current view: ${JSON.stringify(state)}`);
   };
   const checkReturns = async ready => {
     const links = [...root.querySelectorAll('[data-mb-return]')];
@@ -252,7 +276,7 @@ async function mountedScenario() {
     check(q('selection-name').textContent === `Example: ${initialExample.name}`, 'Reset did not restore the labeled default example'); gapSize(initialExample, 'war', one);
     check(q('snapshot').querySelector('thead').textContent.includes('gap size') && q('snapshot').querySelector('thead').textContent.includes('LEBRON') && q('rows').closest('table').querySelectorAll('thead th').length === 6, 'Full saved records or the simplified active-metric live table is wrong');
     const priorEntry = index.views.find(v => v.endSeason === initial.endSeason - 1 && v.window === 1), prior = (await json(priorEntry.url)).views[0];
-    change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, 'Prior year did not load');
+    change('season', String(prior.endSeason)); await wait(() => !q('search').disabled && dots().length === prior.players.length, `Prior year did not load (expected ${prior.players.length} players)`);
     choose(prior.players[0]); gapSize(prior.players[0], 'war', prior); association(prior, 'war');
     q('reset').click(); await wait(() => !q('search').disabled && q('season').value === String(initial.endSeason) && dots().length === one.players.length, 'Reset from prior year failed');
     check(q('selection-name').textContent === `Example: ${initialExample.name}` && q('search').value === '', 'Year reset did not restore the labeled default example'); gapSize(initialExample, 'war', one); association(one, 'war');
@@ -268,7 +292,7 @@ async function mountedScenario() {
     root.querySelector('.mb-controls-return').click(); await wait(() => document.activeElement === document.getElementById('mb-controls'), 'Controls return did not focus controls');
     const skip = document.querySelector('[data-mb-skip]'); check(document.body.firstElementChild === skip, 'Project skip link is not before navigation'); skip.click(); await wait(() => document.activeElement === root, 'Skip link did not focus explorer');
     const methodPanels = [...root.querySelectorAll('.mb-methods > details')];
-    check(methodPanels.length === 3 && methodPanels.map(panel => panel.querySelector('summary').textContent).join('|') === 'Reading the chart|Methods and limitations|Sources and code', 'Methods/source destinations were not consolidated');
+    check(methodPanels.length === 3 && methodPanels.map(panel => panel.querySelector('summary').textContent).join('|') === 'Reading the chart|Methods and limitations|Sources', 'Methods/source destinations were not consolidated');
     check(q('view-sources').querySelectorAll('a').length === 3 && !/retrieved|[a-f0-9]{64}/.test(q('view-sources').textContent) && q('view-source-versions').textContent.includes('retrieved'), 'Source attribution/provenance layers are wrong');
     const coverageValues = [...q('coverage-facts').querySelectorAll('dd')].map(el => el.textContent);
     check(coverageValues.slice(0, 5).join('|') === [one.coverage.eligible, one.coverage.matched, one.coverage.sourcePlayerSeasons, one.coverage.eligiblePlayerSeasons, one.coverage.unknownSalaryPlayerSeasons].join('|'), 'Labeled coverage populations differ from the saved fields');
@@ -299,7 +323,7 @@ test('real mounted Moneyball retains comparison context and clears/retries corru
   assert.equal(savedReturns.length, 3, 'All three no-JS return links must name saved records');
   assert.ok(savedReturns.every(link => link.includes('href="#mb-snapshot-title"')), 'No-JS return links must target the visible saved records');
   assert.ok(html.match(/<h3\b[^>]*id="mb-snapshot-title"[^>]*>/)?.[0].includes('tabindex="-1"'), 'Saved heading must accept native return focus');
-  assert.ok(html.includes("script-src 'self'") && html.includes('</body>'), 'Use the actual strict-CSP private build');
+  assert.ok(html.includes("script-src 'self'") && html.includes('</body>'), 'Use the actual strict-CSP site build');
   const module = `(${mountedScenario.toString()})();`, profile = await mkdtemp(join(tmpdir(), 'moneyball-browser-'));
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png', '.webp': 'image/webp' };
   let armed = false, corruptions = 0, browser;
