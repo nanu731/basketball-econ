@@ -35,10 +35,17 @@ async function mountedScenario() {
   const dots = () => [...q('chart').querySelectorAll('circle[data-player]')];
   const reference = () => q('chart').querySelector('.mb-reference')?.getAttribute('d');
   const fields = ['summary', 'context', 'anchor', 'difference', 'range', 'support', 'precision'];
-  const choose = player => {
+  const choose = (player, keyboard = false) => {
     q('search').value = player.name; q('search').dispatchEvent(new Event('input', { bubbles: true }));
     const option = [...q('suggestions').querySelectorAll('[data-suggestion-index]')].find(el => el.querySelector('[data-suggestion-name]')?.textContent === player.name);
-    check(option && option.querySelector('small')?.textContent.trim(), 'Actual player suggestion or team context missing'); option.click();
+    check(option && option.querySelector('small')?.textContent.trim(), 'Actual player suggestion or team context missing');
+    if (keyboard) {
+      q('search').focus();
+      q('search').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      q('search').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    } else option.click();
+    const panel = q('selection-panel'), bounds = panel.getBoundingClientRect();
+    check(document.activeElement === panel && bounds.top >= -1 && bounds.top < innerHeight && q('search').value === player.name && q('chart').querySelector('.mb-selected')?.dataset.player === player.id, 'Explicit search selection did not retain its query and reveal/focus the updated result');
   };
   const connector = () => {
     const gap = q('chart').querySelector('.mb-gap'), dot = q('chart').querySelector('.mb-selected');
@@ -147,7 +154,7 @@ async function mountedScenario() {
       check(q('selected-scale').textContent.includes(`about ${scaleText}`) && q('selected-scale').textContent.includes('median distance') && !q('selected-scale').textContent.includes('matched players') && q('selected-cohort').textContent.includes(`${view.players.length} eligible matched players`), 'Rounded native scale or single full cohort context missing');
       check(getComputedStyle(q('selected-magnitude')).fontSize === '18px' && getComputedStyle(q('selected-magnitude')).fontWeight === '600', 'Gap-size number hierarchy missing');
     };
-    choose(player); connector();
+    choose(player, true); connector();
     check(!q('comparison-details').open && q('selected-percentile').closest('details') === q('comparison-details') && !q('selected-gap').closest('details'), 'Primary gap or secondary comparison hierarchy is wrong');
     check(q('search-result').getAttribute('role') === 'status' && getComputedStyle(q('search-result')).position === 'absolute' && getComputedStyle(q('search-result')).clipPath === 'inset(50%)' && q('search-instructions').textContent === '' && !root.querySelector('[data-mb-view-comparison]'), 'Selected feedback is not screen-reader-only or a visible comparison line remains');
     check(q('guide').textContent.startsWith('Select a dot or search.') && q('guide').getBoundingClientRect().top < q('chart').getBoundingClientRect().top && root.querySelector('.mb-ranked-link').getBoundingClientRect().top < q('chart').getBoundingClientRect().top, 'Invitation or ranked route is below the plot');
@@ -238,7 +245,9 @@ async function mountedScenario() {
     q('retry').click(); await wait(() => !q('search').disabled && reference() && fields.every(f => q(`million-${f}`).textContent.trim()), 'Retry did not recover');
     check(!q('search').disabled && !q('units').disabled && !q('reset').disabled && q('snapshot').hidden, 'Recovered view stayed disabled');
     const fiveView = index.views.find(v => v.endSeason === initial.endSeason && v.window === 5); association((await json(fiveView.url)).views[0], 'lebron');
+    q('reset').focus({ preventScroll: true }); q('reset').scrollIntoView({ block: 'center', behavior: 'instant' }); const resetScroll = scrollY;
     q('reset').click(); await wait(() => !q('search').disabled && q('window').value === '1' && dots().length === one.players.length, 'Reset did not return to default view');
+    check(document.activeElement === q('reset') && Math.abs(scrollY - resetScroll) < 1, 'Reset moved focus or jumped to the starter result');
     check(q('metric').value === 'war' && q('units').value === 'usd' && q('team').value === '' && q('search').value === '', 'Reset did not restore the default controls and empty search');
     check(q('selection-name').textContent === `Example: ${initialExample.name}`, 'Reset did not restore the labeled default example'); gapSize(initialExample, 'war', one);
     check(q('snapshot').querySelector('thead').textContent.includes('gap size') && q('snapshot').querySelector('thead').textContent.includes('LEBRON') && q('rows').closest('table').querySelectorAll('thead th').length === 6, 'Full saved records or the simplified active-metric live table is wrong');

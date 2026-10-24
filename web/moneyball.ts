@@ -521,12 +521,16 @@ export function mountMoneyball(root: HTMLElement): void {
     suggestionModel.update(search.disabled ? null : active, team.value, search.value);
     renderSuggestions(); searchStatus();
   }
+  function revealSelection() {
+    const panel = get('selection-panel'); panel.focus({ preventScroll: true }); panel.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
   function commitPlayer(id: string, fromSearch = false, asExample = false): boolean {
     const entry = resolveSearchChoice(active, team.value, fromSearch ? search.value : '', id);
     if (!entry) { closeSuggestions(); searchStatus(); return false; }
     selected = entry.id; exampleSelection = asExample ? entry.id : ''; search.value = asExample ? '' : entry.name;
-    if (fromSearch) search.focus({ preventScroll: true });
-    closeSuggestions(); render(); return true;
+    closeSuggestions(); render();
+    if (fromSearch) revealSelection();
+    return true;
   }
   function failure(message: string, preserveChoice = false) {
     if (!preserveChoice) { selected = ''; exampleSelection = ''; search.value = ''; }
@@ -781,7 +785,7 @@ export function mountMoneyball(root: HTMLElement): void {
   const choose = (e: Event) => {
     const target = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-player]') : null;
     if (target && commitPlayer(target.dataset.player ?? '') && (e.currentTarget === table || e.currentTarget === get('example-buttons'))) {
-      const panel = get('selection-panel'); panel.focus({ preventScroll: true }); panel.scrollIntoView({ block: 'start', behavior: 'instant' });
+      revealSelection();
     }
   };
   chart.addEventListener('pointerover', event => {
