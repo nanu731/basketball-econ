@@ -290,6 +290,24 @@ export function gapScaleCopy(metric: Metric, view: View): string {
   return scale.status === 'available' ? `Typical league gap (median distance): about ${gapNumber(scale.scale!)} ${unit}.` : `Gap size unavailable: ${scale.reason === 'zero-scale' ? 'the median distance from the line is zero' : scale.reason === 'unrepresentable-ratio' ? 'the ratio cannot be represented safely' : 'the scale is invalid'}.`;
 }
 
+export function referenceRSquared(metric: Metric, view: View): number | null {
+  const players = view.players;
+  if (!players.length || !players.every(p => Number.isFinite(p[metric]) && Number.isFinite(p.residual[metric]))) return null;
+  if (players.every(p => p[metric] === players[0][metric])) return null;
+  const mean = players.reduce((sum, p) => sum + p[metric], 0) / players.length;
+  const total = players.reduce((sum, p) => sum + (p[metric] - mean) ** 2, 0);
+  const error = players.reduce((sum, p) => sum + p.residual[metric] ** 2, 0);
+  const score = 1 - error / total;
+  return total > 0 && Number.isFinite(total) && Number.isFinite(error) && Number.isFinite(score) ? score : null;
+}
+export function referenceFitCopy(metric: Metric, view: View): string {
+  const score = referenceRSquared(metric, view);
+  const context = `${viewLabel(view)} · ${metricLabel(metric, view)} · ${view.players.length} matched league players`;
+  if (score === null) return `${context}. In-sample R² unavailable: contribution variation is zero or the calculation cannot be represented safely.`;
+  const interpretation = score < 0 ? 'The fitted line has more squared error than using the cohort mean.' : `The salary line accounts for about ${Math.round(score * 100)}% of contribution variation in this matched sample.`;
+  return `${context}. ${interpretation} In-sample R² = ${score.toFixed(3)}.`;
+}
+
 export function normalizePlayerSearch(value: string): string {
   return value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('en-US')
     .replace(/[\p{P}\p{S}]+/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -582,7 +600,7 @@ export function mountMoneyball(root: HTMLElement): void {
     get('example-buttons').replaceChildren(); get('examples').hidden = true;
     get('selected-key').hidden = true; get('peer-key').dataset.hollow = 'false';
     txt('metric-note', 'Contribution baseline appears after this view loads.'); txt('period', 'Regular seasons · awaiting selected view'); txt('coverage-summary', '');
-    for (const field of ['coverage-facts', 'coverage-exclusions', 'view-context', 'view-model-name']) txt(field, '');
+    for (const field of ['coverage-facts', 'coverage-exclusions', 'view-context', 'view-model-name', 'fit-summary']) txt(field, '');
     txt('coverage', ''); txt('model', ''); txt('view-evidence', 'No interactive view loaded.');
     for (const field of ['view-method', 'view-validation', 'view-interval']) txt(field, '');
     txt('source-context', 'Interactive sources unavailable; saved sources are in the technical records.');
@@ -676,6 +694,7 @@ export function mountMoneyball(root: HTMLElement): void {
     txt('y-label', m === 'war' ? active.window > 1 ? 'Estimated wins · average per observed season' : 'Estimated wins · season total' : 'Impact points per 100 possessions');
     txt('x-label', units.value === 'share' ? active.window === 1 ? 'Salary · % of season cap' : 'Salary · average % of observed season caps' : active.window === 1 ? 'Salary · US dollars' : `Average annual pay · adjusted to the ${seasonLabel(active.endSeason)} salary cap`);
     txt('model', active.models[m].curve[0].low === null ? 'No estimated range for the league curve is supplied.' : 'The shaded range concerns the fitted league curve.');
+    txt('fit-summary', referenceFitCopy(m, active));
     txt('view-context', `${viewLabel(active)} · ${metricLabel(m, active)}`); txt('view-model-name', active.models[m].name);
     if (bundle) txt('view-evidence', `${viewLabel(active)} · ${m.toUpperCase()} · ${active.models[m].name} · ${bundle.dataVersion}`);
     txt('view-method', active.models[m].method); txt('view-interval', active.models[m].intervalLabel);

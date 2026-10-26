@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import DefinitionHelp from './DefinitionHelp.astro';
-import { INDEX_URL, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, DEFAULT_METRIC, parseJSONBytes, validateIndex, validateViewBundle, viewLabel, viewSourceLinks, metricLabel, salaryCoverage, decimal, money, percentile, gapMultiple, gapScaleCopy, sortGapRows, millionSummary, readableReason, teamName, type Bundle } from './moneyball';
+import { INDEX_URL, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, DEFAULT_METRIC, parseJSONBytes, validateIndex, validateViewBundle, viewLabel, viewSourceLinks, metricLabel, salaryCoverage, decimal, money, percentile, gapMultiple, gapScaleCopy, sortGapRows, referenceFitCopy, millionSummary, readableReason, teamName, type Bundle } from './moneyball';
 let data: Bundle | null = null;
 let state = 'Reviewed salary and contribution records are not available. No player findings are shown.';
 try {
@@ -65,7 +65,7 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
     <div class="mb-no-matches" data-mb-no-matches hidden><p>No players match this search.</p><button type="button" data-mb-clear-search>Clear search</button></div>
     <div class="mb-chart-layout">
       <div class="mb-plot">
-        <p class="mb-axis mb-y"><span data-mb-war-help hidden><DefinitionHelp id="mb-war" label="WAR" detailTarget="mb-metric-definitions" detailLabel="Metric definitions and formulas">LEBRON WAR is BBall Index's estimated wins above a readily available fill-in player, including playing time. Zero is that replacement baseline, not the team's actual wins. We use the provider's value.</DefinitionHelp></span><span data-mb-lebron-help><DefinitionHelp id="mb-lebron" label="LEBRON" detailTarget="mb-metric-definitions" detailLabel="Metric definitions and formulas">BBall Index's estimated on-court impact per 100 possessions, combining box-score and adjusted on/off information. Zero means league-average impact; this is a rate, not points actually scored.</DefinitionHelp></span><span class="mb-axis-copy"><span data-mb-y-label>Impact points per 100 possessions</span><span data-mb-metric-note>Zero: league-average impact.</span></span></p>
+        <p class="mb-axis mb-y"><span data-mb-war-help hidden><DefinitionHelp id="mb-war" label="WAR" detailTarget="mb-metric-definitions" detailLabel="Why these metrics and formulas">LEBRON WAR is BBall Index's estimated wins above a readily available fill-in player, including playing time. Zero is that replacement baseline, not the team's actual wins. We use the provider's value.</DefinitionHelp></span><span data-mb-lebron-help><DefinitionHelp id="mb-lebron" label="LEBRON" detailTarget="mb-metric-definitions" detailLabel="Why these metrics and formulas">BBall Index's estimated on-court impact per 100 possessions, combining box-score and adjusted on/off information. Zero means league-average impact; this is a rate, not points actually scored.</DefinitionHelp></span><span class="mb-axis-copy"><span data-mb-y-label>Impact points per 100 possessions</span><span data-mb-metric-note>Zero: league-average impact.</span></span></p>
         <div class="mb-stage">
           <svg role="img" data-mb-chart aria-label="Salary and measured contribution" viewBox="0 0 300 420"><title>No interactive records loaded</title></svg>
           <div class="mb-empty" data-mb-empty><h3 data-mb-empty-title>Player comparison unavailable</h3><p data-mb-empty-copy>Load a validated view or read the saved records below.</p><button type="button" data-mb-retry>Retry data</button></div>
@@ -102,7 +102,7 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
       </section>
       <div class="mb-examples" data-mb-examples hidden><span>Try:</span><div data-mb-example-buttons></div></div>
   <p class="mb-small mb-note" data-mb-window-note>One dot compares the same player's matched salary and contribution. Controls become available after the selected view passes validation.</p>
-  <p class="mb-small mb-note" data-mb-coverage-summary></p>
+  <p class="mb-small mb-note"><span data-mb-coverage-summary></span> <DefinitionHelp id="mb-inclusion" label="Who's included?" detailTarget="mb-inclusion-rules" detailLabel="Inclusion rules and limits">Players need at least 200 total minutes and 5 games across the selected window, plus matching salary and contribution data for each season they played. This leaves out brief appearances and incomplete records, so the line describes this matched sample, not every NBA player.</DefinitionHelp></p>
     </div>
 
     <figcaption id="mb-caption" data-mb-caption hidden>League reference stays fixed under filters. Tap an underlined term for help; tap outside or press Escape to close.</figcaption>
@@ -139,8 +139,10 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
       <p>Each dot is a player with matched salary and contribution records. The league line estimates contribution at that pay; the selected player's gap is the distance above or below it.</p>
       <p>WAR adds estimated wins above a readily available fill-in player over playing time. LEBRON measures impact per 100 possessions relative to league average, not points actually scored.</p>
       <p><a href="https://www.bball-index.com/lebron-introduction/" rel="noreferrer">Provider explanation of LEBRON and WAR</a>.</p>
-      <details><summary>Metric definitions and formulas</summary>
+      <details><summary>Why these metrics? Definitions and formulas</summary>
         <h4 id="mb-metric-definitions" tabindex="-1" data-reference-target>Metric definitions and formulas</h4>
+        <p><strong>Why LEBRON and WAR?</strong> LEBRON estimates impact while playing; its related WAR adds playing time to estimate season contribution. Together they answer our two contribution questions within one framework, with an accessible historical record. LEBRON combines box-score and adjusted on/off information.</p>
+        <p>These are related views, not independent confirmation; neither captures every aspect of player value. <a href="https://www.bball-index.com/lebron-introduction/" rel="noreferrer">Provider methodology</a>.</p>
         <dl class="mb-million-evidence">
           <dt>LEBRON · impact rate</dt><dd>BBall Index estimates impact per 100 on-court possessions relative to league average (zero). It combines a stabilized, role-adjusted box-score prior with luck-adjusted on/off regression. This describes its approach, not a reproducible equation.</dd>
           <dt>LEBRON WAR · season contribution</dt><dd>BBall Index's estimated wins above replacement incorporates impact and playing time. Zero is the replacement-player baseline. We import the provider's WAR rather than convert LEBRON into wins ourselves.</dd>
@@ -158,6 +160,7 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
           <dt>Extra $1 million</dt><dd><code>f̂(s + 1,000,000 / reference cap) − f̂(s)</code>, only where both salaries have local support. Describes association, not the effect of a raise.</dd>
           <dt>Reference range</dt><dd><code>f̂(s) ± 1.96 × SE_boot(s)</code>, where SE_boot is the sample standard deviation of whole-player bootstrap refits at that salary. The $1 million range uses the standard deviation of paired differences from those same refits. These approximate 95% pointwise intervals treat provider scores and the selected model family as fixed; failed diagnostics withhold them.</dd>
           <dt>Team totals</dt><dd>Sum salary and WAR over attributable matched player-season records only. For a multi-season team view, divide those sums by the full selected window length. Salary is first converted using each season's cap to ending-season cap-equivalent dollars. Never sum LEBRON rates.</dd>
+          <dt id="mb-r-squared-calculation" tabindex="-1" data-reference-target>In-sample R²</dt><dd><code>R² = 1 − Σrᵢ² / Σ(yᵢ − ȳ)²</code>, where ȳ is the mean contribution of the full matched league cohort. Uses the saved native-unit gaps, before display rounding. It is unavailable when contribution is constant or the calculation cannot be represented safely. Negative values are retained: they mean more squared error than using the cohort mean. Team, search and salary-unit filters do not change it.</dd>
           <dt>Model validation error</dt><dd><code>MSE = Σ(yᵢ − ŷᵢ)² / n</code> on held-out players; <code>RMSE = √MSE</code>. These measure prediction error and do not provide an individual player's significance test.</dd>
         </dl>
       </details>
@@ -166,12 +169,15 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
     <details><summary>Methods and limitations</summary>
       <p>A baseline, a straight line and a modest curve are checked on held-out players, with simpler fits retained when results are close. Rookie, minimum and maximum contract rules constrain pay, so this is a descriptive comparison.</p>
       <p class="mb-million-summary" data-mb-million-summary>{defaultMillion?.summary ?? 'The $1 million comparison is unavailable until a validated view loads.'}</p>
-      <p>Salary and contribution cover the same matched seasons. Team totals cover only records that can be assigned to that club; they are not its full payroll or roster performance.</p>
+      <p>The line describes eligible players with complete matched data. Brief appearances and missing records are excluded, so the relationship may differ for the wider league. Salary and contribution cover the same matched seasons. Team totals cover only records that can be assigned to that club; they are not its full payroll or roster performance.</p>
       <p>The shaded range concerns the fitted league line, not uncertainty in an individual player's impact. These comparisons do not establish cause; gap percentile and Gap size describe league comparisons, not talent or significance.</p>
       <details class="mb-technical" data-mb-technical><summary>Technical records: current view and saved default</summary>
         <section id="mb-technical-records" tabindex="-1" data-reference-target>
           <h4>Current interactive view</h4>
           <dl class="mb-facts"><dt>View</dt><dd data-mb-view-context>No interactive view loaded.</dd><dt>Salary-reference model</dt><dd data-mb-view-model-name></dd><dt>Reference-range meaning</dt><dd data-mb-model></dd></dl>
+          <h5><DefinitionHelp id="mb-r-squared" label="How closely does salary track contribution? (R²)" detailTarget="mb-r-squared-calculation" detailLabel="Definitions and exact formulas">R² summarizes how much contribution variation the fitted salary line accounts for within the matched league sample. It is an in-sample fit measure, not forecast accuracy, a causal effect or the significance of one player's gap.</DefinitionHelp></h5>
+          <p class="mb-small" data-mb-fit-summary>{data ? referenceFitCopy(DEFAULT_METRIC, data.views[0]) : 'In-sample R² unavailable until a validated view loads.'}</p>
+          <p class="mb-small">This describes the fitted sample. Held-out error below is the separate check used to compare models; R² did not select the curve.</p>
           <h5>Current coverage: separate populations</h5>
           <dl class="mb-facts" data-mb-coverage-facts></dl>
           <p class="mb-small">Player counts, player-season counts and known-dollar totals describe different populations. Read each population separately; these rows are not consecutive steps in one exclusion total.</p>
@@ -182,6 +188,9 @@ const defaultMillion = data ? millionSummary(data.views[0], DEFAULT_METRIC) : nu
             <section data-mb-team-audit-panel hidden><h5>Current team attribution audit</h5><p class="mb-small" data-mb-team-audit>No team audit loaded.</p></section>
             <h5>Current source retrieval dates and versions</h5><ul data-mb-view-source-versions></ul>
           </details>
+          <h4 id="mb-inclusion-rules" tabindex="-1" data-reference-target>Inclusion rules and selection limits</h4>
+          <p>Players need at least 200 total minutes and 5 games across their observed active seasons in the selected window, with comparable salary and both contribution measures for each of those seasons. The threshold is a display rule, not proof that every player's score is reliable. Excluding brief appearances and incomplete matches can change which salary and performance profiles are represented; these exclusions alone do not establish the direction or size of selection bias.</p>
+          <p>Multi-season views can include shorter active histories. Fully absent seasons are not filled with zero, and an active season with missing salary prevents a complete match. Read the observed-season count beside each player; the results describe this eligible matched sample.</p>
           <h4>Representation and fitting</h4>
 <p>The analysis fits a league-wide relationship between matched compensation and each contribution measure. The above / below reference value is the vertical gap between a player's dot and that curve. It stays fixed under team or player filters.</p><p>For multi-season windows, salary and both contribution measures cover exactly the same observed matched active seasons. A player can have fewer observed seasons than the selected window. Read that count beside the player before comparing averages. WAR and salary cap share average the observed matched active seasons; LEBRON uses the provider's possession counts as weights. Dollar views multiply average cap share by the ending-season salary cap. Team annual averages instead divide attributable player-season totals by the full selected window length.</p>{data && <><p>{data.definitions.eligibility}</p>{data.views.map(v => <details><summary>Saved {viewLabel(v)} model and validation</summary>{(['lebron', 'war'] as const).map(m => <dl class="mb-million-evidence"><dt>{m.toUpperCase()} model</dt><dd>{v.models[m].name}</dd><dt>Method</dt><dd>{v.models[m].method}</dd><dt>Validation</dt><dd><ul class="mb-validation-clauses" data-mb-saved-validation={m}>{v.models[m].validation.split(' | ').map(clause => <li>{clause}</li>)}</ul></dd></dl>)}</details>)}</>}
 <h4>Salary and team attribution</h4>

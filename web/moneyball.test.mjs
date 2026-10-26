@@ -1,7 +1,7 @@
 // Explicitly synthetic schema fixtures, never published NBA observations.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows, viewSourceLinks } from './moneyball.ts';
+import { validateBundle as validateBundleAt, interpolate, validateIndex as validateIndexAt, validateViewBundle as validateViewBundleAt, createViewLoader as createViewLoaderAt, parseJSONBytes, readJSONResponse, INDEX_BYTE_LIMIT, VIEW_BYTE_LIMIT, lastCompletedSeason, teamName, readableReason, niceTicks, salaryCoverage, resolvePlayerSelection, chartLabels, money, decimal, valuePercentiles, percentile, filterPlayers, playerComparisonCopy, placeChartLabels, warOptionLabel, normalizePlayerSearch, playerSuggestions, createPlayerSuggestions, resolveSearchChoice, salaryTicks, millionSummary, examplePlayers, gapSizes, gapMultiple, gapScaleCopy, sortGapRows, viewSourceLinks, referenceRSquared, referenceFitCopy } from './moneyball.ts';
 const AS_OF = new Date('2026-10-23T12:00:00Z');
 const validateBundle = (input, asOf = AS_OF) => validateBundleAt(input, asOf);
 const validateIndex = (input, asOf = AS_OF) => validateIndexAt(input, asOf);
@@ -588,4 +588,35 @@ test('table rows sort by the active native gap descending without changing cohor
   assert.notEqual(war[0].id, rate[0].id); assert.deepEqual(view.players, before);
   assert.deepEqual(sortGapRows(war.filter(p => p.teams.includes('TEST')), 'war').map(p => p.residual.war), [2, 0]);
   assert.equal(gapMultiple(2, false), '+2.00'); assert.equal(gapMultiple(null, false), 'Unavailable');
+});
+
+// Synthetic outcomes test the fit summary independently of any published finding.
+test('R² uses saved full-cohort residuals without clamping negative values', () => {
+  const view = fixture().views[0];
+  view.players = [-1, 0, 1].map((lebron, i) => ({ ...view.players[0], id: String(i), lebron, residual: { lebron: lebron / 2, war: 0 } }));
+  const before = structuredClone(view);
+  assert.equal(referenceRSquared('lebron', view), .75);
+  assert.match(referenceFitCopy('lebron', view), /about 75%.*R² = 0.750/);
+  assert.deepEqual(view, before);
+  view.players.forEach(p => { p.residual.lebron = p.lebron * 2; });
+  assert.equal(referenceRSquared('lebron', view), -3);
+  assert.match(referenceFitCopy('lebron', view), /more squared error.*R² = -3.000/);
+  assert.doesNotMatch(referenceFitCopy('lebron', view), /accounts for .*%/);
+});
+test('R² withholds empty, constant, invalid or unrepresentable calculations', () => {
+  const view = fixture().views[0];
+  assert.equal(referenceRSquared('lebron', view), null);
+  view.players = [0.1, 0.1, 0.1].map(lebron => ({ ...view.players[0], lebron, residual: { lebron: 0, war: 0 } }));
+  assert.equal(referenceRSquared('lebron', view), null);
+  view.players = [];
+  assert.equal(referenceRSquared('lebron', view), null);
+  view.players = [-1, 1].map(lebron => ({ ...fixture().views[0].players[0], lebron }));
+  for (const value of [NaN, Infinity, Number.MAX_VALUE]) {
+    view.players[0].residual.lebron = value;
+    assert.equal(referenceRSquared('lebron', view), null);
+  }
+  view.players[0].residual.lebron = 0;
+  view.players[0].lebron = NaN;
+  assert.equal(referenceRSquared('lebron', view), null);
+  assert.match(referenceFitCopy('lebron', view), /R² unavailable/);
 });
