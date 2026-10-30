@@ -46,6 +46,15 @@ Run the offline syntax and boundary checks:
 Rscript scripts/check.R
 ```
 
+The 30 October 2026 code checks reproduced and fixed an earnings-parser bug that
+treated a JSON boolean as a dollar amount. Indexed salary-history lookups preserve
+the complete import result while avoiding a full history scan per player-season.
+Offline regressions cover malformed amounts, duplicate records and missing data;
+these checks do not reverify upstream data or published findings.
+Independent review also found that a cached bootstrap could retain a previous
+call's timing-pilot flag. Cache replay now applies the current call's flag while
+reusing identical draws; regressions check both call orders and interval gates.
+
 Acquire a metric snapshot, preserving the request, retrieval time and response checksum:
 
 ```sh

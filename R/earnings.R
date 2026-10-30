@@ -47,6 +47,8 @@ normalize_earnings <- function(bytes, nba_id) {
     if (!is.numeric(from) || length(from) != 1L || is.na(from) || from != floor(from) ||
         !is.numeric(to) || length(to) != 1L || is.na(to) || to != from + 1L) stop("Invalid historical salary year bounds", call. = FALSE)
     raw_amount <- row$salary
+    if (!is.null(raw_amount) && (length(raw_amount) != 1L ||
+        !(is.numeric(raw_amount) || is.character(raw_amount)))) stop("Invalid historical salary amount shape or type", call. = FALSE)
     amount <- if (is.null(raw_amount)) NA_real_ else suppressWarnings(as.numeric(raw_amount))
     if (length(amount) != 1L) stop("Invalid historical salary amount shape", call. = FALSE)
     league <- if (is.null(row$league)) NA_character_ else as.character(row$league)
@@ -130,9 +132,11 @@ earnings_salary_import <- function(snapshots, cohort, seasons) {
   ids <- vapply(snapshots, `[[`, character(1), "nba_id")
   if (anyDuplicated(ids)) stop("Duplicate earnings snapshots for a player", call. = FALSE)
   history <- dplyr::bind_rows(lapply(snapshots, `[[`, "records"))
+  history_groups <- if (nrow(history)) split(seq_len(nrow(history)), paste(history$nba_id, history$season)) else list()
   rows <- lapply(seq_len(nrow(cohort)), function(i) {
     id <- cohort$nba_id[i]; season <- cohort$season[i]
-    h <- if (nrow(history)) history[history$nba_id == id & history$season == season, ] else history
+    indices <- history_groups[[paste(id, season)]]
+    h <- if (length(indices)) history[indices, ] else history[integer(), ]
     status <- if (!as.character(id) %in% ids) "acquisition_unavailable" else if (!nrow(h)) "missing_historical_season" else
       if (nrow(h) > 1L) "multiple_source_records" else h$source_salary_status[1]
     tibble::tibble(season = season, nba_id = as.integer(id), source_player_id = as.character(id),

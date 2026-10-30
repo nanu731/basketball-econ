@@ -49,7 +49,9 @@ run_relationship_bootstrap <- function(curve, end_year, window_length, draws = 4
   key <- sha256_bytes(serialize(cache_identity, NULL, version = 3))
   path <- file.path(cache_dir, paste0("bootstrap-", key, "-", draws, ".rds"))
   if (file.exists(path)) {
-    return(read_bootstrap_cache(path, cache_identity, draws))
+    cached <- read_bootstrap_cache(path, cache_identity, draws)
+    cached$pilot <- pilot
+    return(cached)
   }
   predictions <- matrix(NA_real_, nrow = draws, ncol = length(curve$knots))
   failures <- rep(NA_character_, draws); sample_min <- sample_max <- rep(NA_real_, draws)

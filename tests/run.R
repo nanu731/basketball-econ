@@ -160,6 +160,20 @@ test("earnings parser follows only the requested parent's historical salary refe
   expect_error(normalize_earnings(bytes, "2544"), "requested NBA player")
 })
 
+test("earnings parser rejects booleans and structured amounts rather than inventing pay", {
+  html <- paste(readLines("tests/fixtures/earnings.html", warn = FALSE), collapse = "\n")
+  for (amount in c("true", "false", "[1234567]", "{\"amount\":1234567}")) {
+    bad <- charToRaw(sub('"salary":1234567', paste0('"salary":', amount), html, fixed = TRUE))
+    expect_error(normalize_earnings(bad, "1641705"), "salary amount shape or type")
+  }
+  for (amount in c("1234567", '"1234567"', "null")) {
+    bytes <- charToRaw(sub('"salary":1234567', paste0('"salary":', amount), html, fixed = TRUE))
+    rows <- normalize_earnings(bytes, "1641705")$records
+    value <- rows$salary_reported_usd[rows$season == "2024-25"]
+    stopifnot(if (amount == "null") is.na(value) else value == 1234567)
+  }
+})
+
 test("earnings snapshots replay offline and reject altered source bodies", {
   bytes <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
   cache <- tempfile("basketball-earnings-test-")
@@ -185,6 +199,26 @@ test("multiple historical amounts remain unresolved and zero placeholders stay m
   stopifnot(all(is.na(reconciled$players$salary_reported_usd)),
             reconciled$players$salary_status[reconciled$players$season == "2024-25"] == "multiple_source_records",
             reconciled$players$salary_status[reconciled$players$season == "2025-26"] == "unsupported_zero")
+})
+
+test("indexed earnings lookup preserves identity, duplicates, missing seasons and missing documents", {
+  bytes <- readBin("tests/fixtures/earnings.html", "raw", n = 100000L)
+  a <- normalize_earnings(bytes, "1641705")
+  b <- a; b$nba_id <- "1629029"; b$records$nba_id <- 1629029L
+  b$records <- rbind(b$records, b$records[b$records$season == "2024-25", ])
+  cohort <- tibble::tibble(season = c("2024-25", "2024-25", "2025-26", "2023-24", "2024-25"),
+    nba_id = c(1641705L, 1629029L, 1641705L, 1641705L, 2544L))
+  seasons <- c("2023-24", "2024-25", "2025-26")
+  rows <- earnings_salary_import(list(b, a), cohort, seasons)$records
+  stopifnot(identical(rows$nba_id, cohort$nba_id), identical(rows$season, cohort$season),
+    identical(rows$source_salary_status, c("reported_positive", "multiple_source_records", "unsupported_zero",
+      "missing_historical_season", "acquisition_unavailable")), rows$salary_reported_usd[1] == 1234567,
+    all(is.na(rows$salary_reported_usd[-1])))
+  empty <- earnings_salary_import(list(), cohort, seasons)$records
+  stopifnot(nrow(empty) == nrow(cohort), all(empty$source_salary_status == "acquisition_unavailable"))
+  a$records <- a$records[integer(), ]
+  missing <- earnings_salary_import(list(a), cohort, seasons)$records
+  stopifnot(all(missing$source_salary_status[cohort$nba_id == 1641705L] == "missing_historical_season"))
 })
 
 test("standardized windows keep identical seasons for cost and both outcomes", {
@@ -374,6 +408,21 @@ test("bootstrap timing pilots are reproducible cache replays and cannot supply p
   result <- attach_bootstrap_intervals(curve, pilot)
   stopifnot(identical(pilot$predictions, replay$predictions), pilot$valid_refits == 25L,
             all(is.na(result$low)), result$bootstrap$interval_status == "timing_pilot_only")
+})
+
+test("bootstrap cache replay preserves the current call's pilot interval gate in both directions", {
+  fit <- fit_salary_relationship(synthetic_relationship_points("linear"), "war")
+  curve <- relationship_curve(fit, 154647000)
+  for (first_pilot in c(FALSE, TRUE)) {
+    cache <- tempfile("basketball-bootstrap-mode-test-")
+    first <- run_relationship_bootstrap(curve, 2026L, 1L, cache_dir = cache, pilot = first_pilot)
+    replay <- run_relationship_bootstrap(curve, 2026L, 1L, cache_dir = cache, pilot = !first_pilot)
+    stopifnot(identical(first$predictions, replay$predictions), identical(replay$pilot, !first_pilot))
+    result <- attach_bootstrap_intervals(curve, replay)
+    if (replay$pilot) stopifnot(all(is.na(result$low)), all(is.na(result$contrast_low)),
+      result$bootstrap$interval_status == "timing_pilot_only") else
+      stopifnot(result$bootstrap$interval_status == "computed_conditional_intervals", all(is.finite(result$low)))
+  }
 })
 
 test("team filtering preserves the full league reference and support counts", {
